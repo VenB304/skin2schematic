@@ -1,8 +1,9 @@
 import time
 try:
-    from litemapy import Schematic, Region, BlockState
+    from litemapy import Schematic, Region, BlockState, TileEntity
+    from nbtlib import Compound, String, Int, List
 except ImportError:
-    print("Error: litemapy not found. Please install it.")
+    print("Error: litemapy or nbtlib not found. Please install litemapy.")
     raise
 
 class SchematicBuilder:
@@ -127,6 +128,71 @@ class SchematicBuilder:
                                       # Actually, usually they match the block position. 
                                       # In a Schematic object, if origin is 0,0,0, then relative=absolute.
                                       # Reg is 0,0,0 based. So lx, ly, lz.
+                        "y": Int(ly),
+                        "z": Int(lz),
+                        "front_text": Compound({
+                            "messages": List([
+                                String(msg_json),
+                                String('{"text":""}'),
+                                String('{"text":""}'),
+                                String('{"text":""}')
+                            ])
+                        }),
+                        "is_waxed": Int(0)
+                    })
+                    
+                    te = TileEntity(nbt)
+                    reg.tile_entities.append(te)
+                    
+                except Exception as e:
+                    print(f"Error adding sign at {lx},{ly},{lz}: {e}")
+
+        schem.save(output_path)
+        print(f"Saved {count} blocks to {output_path}")
+
+try:
+    from litemapy import Schematic, Region, BlockState, TileEntity
+    from nbtlib import Compound, String, Int, List
+except ImportError:
+    pass # Handled at top level usually, but this is safe refactor location logic? 
+         # The top has try/except. Let's just assume they exist since top check passed.
+         # Actually, let's just rely on the top level import for BlockState/Region.
+         # We need to add TileEntity/nbtlib imports to top.
+
+# Move this to top of file
+# But for now, fixing the loop logic.
+
+# In 'save':
+        # Process Signs
+        if hasattr(self, 'signs'):
+            for s in self.signs:
+                lx = s['x'] - min_x
+                ly = s['y'] - min_y
+                lz = s['z'] - min_z
+                
+                # Set Block
+                block_id = "minecraft:oak_wall_sign" if s['wall'] else "minecraft:oak_sign"
+                
+                # BlockState properties
+                props = {}
+                if s['wall']:
+                    props["facing"] = str(s['facing'])
+                else:
+                    rot_map = {"north": 8, "south": 0, "east": 4, "west": 12}
+                    rot = rot_map.get(s.get('facing', 'south'), 0)
+                    props["rotation"] = str(rot)
+                
+                try:
+                    # Construct BlockState with ID and Props
+                    # BlockState("minecraft:oak_sign", {"rotation": "8"})
+                    reg.setblock(lx, ly, lz, BlockState(block_id, props))
+                    
+                    msg_json = f'{{"text":"{s["text"]}"}}'
+                    
+                    # NBT
+                    nbt = Compound({
+                        "id": String("minecraft:sign"),
+                        "x": Int(lx),
                         "y": Int(ly),
                         "z": Int(lz),
                         "front_text": Compound({
