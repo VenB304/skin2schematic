@@ -178,15 +178,17 @@ class FaceUV:
     face_name: str # 'top', 'bottom', 'left', 'right', 'front', 'back'
 
 class BoxPart(Node):
-    def __init__(self, name: str, size: Tuple[int, int, int], uv_map: Dict[str, Tuple[int, int, int, int]], parent: Optional[Node] = None, is_overlay: bool = False):
+    def __init__(self, name: str, size: Tuple[int, int, int], uv_map: Dict[str, Tuple[int, int, int, int]] = None, parent: Optional[Node] = None, is_overlay: bool = False, color: Optional[Tuple[int, int, int]] = None):
         """
         size: (width, height, depth) in blocks
         uv_map: Dict mapping face name e.g. 'front' -> (u, v, w, h) on texture
+        color: Optional fixed RGB color (overrides texture)
         """
         super().__init__(name, parent)
         self.size = size # (w, h, d)
-        self.uv_map = uv_map
+        self.uv_map = uv_map if uv_map is not None else {}
         self.is_overlay = is_overlay
+        self.color = color
         
     def get_aabb_world(self) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         # Get all 8 corners in world space to find AABB

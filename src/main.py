@@ -130,6 +130,13 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
         
         from geometry.items import ItemFactory # Import here to avoid circular
         
+        def find_node(n, target):
+            if n.name == target: return n
+            for c in n.children:
+                res = find_node(c, target)
+                if res: return res
+            return None
+        
         for p_name, p_data, p_item, p_mat in poses_to_render:
             rig = RigFactory.create_rig(model_type=detected_model)
             PoseApplicator.apply_pose(rig, p_data)
@@ -137,27 +144,13 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             # Attach Items
             parts = rig.get_parts()
             if p_item == "sword":
-                # Find RightArmJoint? The Rig parts list doesn't expose Nodes directly easily 
-                # unless we traverse.
-                # But get_parts returns BoxParts. BoxParts have .parent (Node).
-                # We can grab any part (e.g. right_arm) and get its parent?
-                # Or just use the Rig root and Search.
-                # Ideally Rig has get_node("RightArmJoint").
-                # Rig.root is available.
-                def find_node(n, target):
-                    if n.name == target: return n
-                    for c in n.children:
-                        res = find_node(c, target)
-                        if res: return res
-                    return None
-                    
+                # Find RightArmJoint
                 hand_node = find_node(rig.root, "RightArmJoint")
                 if hand_node:
                     sword_parts = ItemFactory.create_sword(p_mat, hand_node)
                     parts.extend(sword_parts)
                     
             elif p_item == "bow":
-                # Left Hand for Bow usually? Or Right? 
                 # bow_aim pose rotates RightArm. So Bow in Right Hand.
                 hand_node = find_node(rig.root, "RightArmJoint")
                 if hand_node:

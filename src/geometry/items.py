@@ -21,63 +21,31 @@ class ItemFactory:
     @staticmethod
     def create_sword(material: str, parent: Node) -> list[BoxPart]:
         """
-        Creates a sword model attached to the given parent node (e.g., RightArmJoint).
-        The sword is positioned as if held in the hand.
+        Creates a sword model attached to the given parent node.
         """
         blade_color = ItemFactory.COLORS.get(material, ItemFactory.COLORS["iron"])
         handle_color = ItemFactory.COLORS["stick"]
-        guard_color = blade_color # Usually same as blade or material specific
+        guard_color = blade_color 
         
         parts = []
         
-        # Sword Geometry (Simplified 1:1 scale)
-        # Held in hand. Hand is at (4,0) to (8,4) in Arm space?
-        # Arm is 4x12x4. Local coords: 0..4, 0..12, 0..4.
-        # Hand is usually at the bottom (Y=0..4 if shoulder is Y=12).
-        # We need to anchor item to the Hand area.
-        # Let's pivot at (2, 2, 2) of the hand (Center of bottom 4x4x4 cube).
-        # Arm Node origin is Shoulder. Hand is Y=-10 relative to Shoulder? 
-        # Wait, BoxPart Y goes UP?
-        # In Rig: Arm Y len=12. Pivot (Shoulder) is Top.
-        # So Hand is at Y=0..4 (if Arm is 0..12).
-        # Let's assume Grab Point is (2, 2, 2).
+        # Helper to create box from min/max relative bounds
+        def make_part(name, min_p, max_p, col):
+            w = max_p[0] - min_p[0]
+            h = max_p[1] - min_p[1]
+            d = max_p[2] - min_p[2]
+            bp = BoxPart(name, size=(w, h, d), color=col, parent=parent)
+            bp.origin = min_p # Set origin to min point relative to parent
+            return bp
         
-        # Sword Structure:
-        # Handle: 1x3x1
+        # Handle (Stick): 1x5x1
+        parts.append(make_part(f"{material}_sword_handle", (1.5, -2, 1.5), (2.5, 3, 2.5), handle_color))
+        
         # Guard: 3x1x1
+        parts.append(make_part(f"{material}_sword_guard", (0.5, 3, 1.5), (3.5, 4, 2.5), guard_color))
+        
         # Blade: 1x8x1
-        
-        # Local Offsets from Hand Center
-        
-        # Handle (Stick)
-        parts.append(BoxPart(
-            name=f"{material}_sword_handle",
-            min_point=(1.5, -2, 1.5), # Stick slightly out bottom
-            max_point=(2.5, 3, 2.5),
-            texture_coords=(0,0), # Dummy
-            color=handle_color,
-            parent=parent
-        ))
-        
-        # Guard
-        parts.append(BoxPart(
-            name=f"{material}_sword_guard",
-            min_point=(0.5, 3, 1.5),
-            max_point=(3.5, 4, 2.5),
-            texture_coords=(0,0),
-            color=guard_color,
-            parent=parent
-        ))
-        
-        # Blade
-        parts.append(BoxPart(
-            name=f"{material}_sword_blade",
-            min_point=(1.5, 4, 1.5),
-            max_point=(2.5, 12, 2.5), 
-            texture_coords=(0,0),
-            color=blade_color,
-            parent=parent
-        ))
+        parts.append(make_part(f"{material}_sword_blade", (1.5, 4, 1.5), (2.5, 12, 2.5), blade_color))
         
         return parts
 
@@ -90,21 +58,25 @@ class ItemFactory:
         string_color = ItemFactory.COLORS["string"]
         parts = []
         
-        # Bow Shape (Curved D)
-        # Held in middle.
+        def make_part(name, min_p, max_p, col):
+            w = max_p[0] - min_p[0]
+            h = max_p[1] - min_p[1]
+            d = max_p[2] - min_p[2]
+            bp = BoxPart(name, size=(w, h, d), color=col, parent=parent)
+            bp.origin = min_p 
+            return bp
         
-        # Central Grip
-        parts.append(BoxPart(name="bow_grip", min_point=(1.5, 1, 1.5), max_point=(2.5, 3, 2.5), color=wood_color, parent=parent))
+        # Grip
+        parts.append(make_part("bow_grip", (1.5, 1, 1.5), (2.5, 3, 2.5), wood_color))
         
-        # Upper Limb
-        parts.append(BoxPart(name="bow_upper_1", min_point=(1.5, 3, 1.5), max_point=(2.5, 5, 2.0), color=wood_color, parent=parent))
-        parts.append(BoxPart(name="bow_upper_2", min_point=(1.5, 5, 1.0), max_point=(2.5, 7, 1.5), color=wood_color, parent=parent))
+        # Limbs
+        parts.append(make_part("bow_upper_1", (1.5, 3, 1.5), (2.5, 5, 2.0), wood_color))
+        parts.append(make_part("bow_upper_2", (1.5, 5, 1.0), (2.5, 7, 1.5), wood_color))
         
-        # Lower Limb
-        parts.append(BoxPart(name="bow_lower_1", min_point=(1.5, -1, 1.5), max_point=(2.5, 1, 2.0), color=wood_color, parent=parent))
-        parts.append(BoxPart(name="bow_lower_2", min_point=(1.5, -3, 1.0), max_point=(2.5, -1, 1.5), color=wood_color, parent=parent))
+        parts.append(make_part("bow_lower_1", (1.5, -1, 1.5), (2.5, 1, 2.0), wood_color))
+        parts.append(make_part("bow_lower_2", (1.5, -3, 1.0), (2.5, -1, 1.5), wood_color))
         
         # String
-        parts.append(BoxPart(name="bow_string", min_point=(1.8, -3, 1), max_point=(2.2, 7, 1.2), color=string_color, parent=parent))
+        parts.append(make_part("bow_string", (1.8, -3, 1), (2.2, 7, 1.2), string_color))
         
         return parts
