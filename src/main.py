@@ -18,20 +18,21 @@ from schematic_builder import SchematicBuilder
 from geometry.rig import RigFactory
 from geometry.pose import PoseApplicator
 from geometry.rasterizer import Rasterizer
+from geometry.simple_voxelizer import SimpleVoxelizer
 from geometry.items import ItemFactory 
 
 def process_skin_wrapper(args):
     """
     Wrapper for multiprocessing.
-    args: (input_path, output_path, model, pose_name, solid, palette, cache_copy)
+    args: (input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, cache_copy)
     Returns: (bool, cache_updates)
     """
-    input_path, output_path, model, pose_name, solid, palette, ignore_layers, cache_copy = args
+    input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, cache_copy = args
     # Re-init matcher to avoid pickling large objects or sharing state issues
     matcher = ColorMatcher(mode=palette)
-    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, matcher, cache_copy)
+    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, matcher, cache_copy)
 
-def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
+def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, simple_mode: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
     """
     Process a single skin file. 
     Returns: (Success, Cache_Updates_Dict)
@@ -159,7 +160,16 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             
             # Optimized Rasterizer call
             # Returns raw numpy arrays
-            wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True, ignore_overlays=ignore_layers)
+            if simple_mode:
+                pixel_blocks = SimpleVoxelizer.generate(parts, skin_img, ignore_overlays=ignore_layers)
+                if not pixel_blocks:
+                    continue
+                wx = np.array([b.x for b in pixel_blocks], dtype=np.int32)
+                wy = np.array([b.y for b in pixel_blocks], dtype=np.int32)
+                wz = np.array([b.z for b in pixel_blocks], dtype=np.int32)
+                colors = np.array([(b.r, b.g, b.b, b.a) for b in pixel_blocks], dtype=np.uint8)
+            else:
+                wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True, ignore_overlays=ignore_layers)
             
             if wx.size == 0:
                 continue
@@ -310,7 +320,7 @@ def interactive_mode():
         
         mode_cache = cache.get("all", {})
         
-        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", False, matcher, mode_cache)
+        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", False, False, matcher, mode_cache)
         if updates:
             # Update local mode cache
             mode_cache.update(updates)
@@ -331,6 +341,7 @@ def main():
     parser.add_argument("--solid", action="store_true", help="Disable hollow optimization")
     parser.add_argument("--palette", default="all", choices=["all", "wool", "concrete", "terracotta"], help="Block palette")
     parser.add_argument("--no-layers", action="store_true", help="Disable secondary skin layers (hat, jacket, etc.)")
+    parser.add_argument("--simple", action="store_true", help="Use simple 1:1 conversion (ignores pose rotations)")
     parser.add_argument("-m", "--model", default="auto", choices=["auto", "classic", "slim"], help="Model type")
     
     if len(sys.argv) == 1:
@@ -363,8 +374,10 @@ def main():
         
     # Setup Global components
     matcher = ColorMatcher(mode=args.palette)
-    pose = "debug_all" if args.debug else args.pose
-    
+    pose = "standing" if args.simple else ("debug_all" if args.debug else args.pose)
+    if args.simple and args.pose != "standing":
+        print("Note: --simple mode forces standard standing pose. Ignoring -p argument.")
+
     # Load Cache
     CACHE_FILE = "color_cache_v2.json"
     full_cache = matcher.load_cache_from_disk(CACHE_FILE)
@@ -383,7 +396,7 @@ def main():
         # Prepare Tasks
         # We pass only the relevant sub-cache to workers to keep pickling small
         tasks = [
-            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, current_cache)
+            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, current_cache)
             for f in files_to_process
         ]
         
@@ -406,7 +419,7 @@ def main():
     else:
         # Single file
         print(f"Processing {files_to_process[0]}...")
-        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, matcher, current_cache)
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, matcher, current_cache)
         success_count = 1 if success else 0
         if updates: current_cache.update(updates)
             
