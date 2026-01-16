@@ -75,8 +75,16 @@ class PoseApplicator:
         "zombie": {
             # Arms raised forward 90 degrees (Pitch 90)
             # Corrected from -90 (Backward) to 90 (Forward)
-            "RightArmJoint": {"rot": {"x": 90}},
-            "LeftArmJoint": {"rot": {"x": 90}}
+            # User req: "2 blocks too high". Default pivot Y=12 local (24 global).
+            # Shift down by 2 -> Y=10 local.
+            "RightArmJoint": {
+                "rot": {"x": 90},
+                "pos": {"x": 4, "y": 10, "z": 0}
+            },
+            "LeftArmJoint": {
+                "rot": {"x": 90},
+                "pos": {"x": -4, "y": 10, "z": 0}
+            }
         },
         "tpose": {
             # Specific T-Pose with translation fix
@@ -90,23 +98,19 @@ class PoseApplicator:
             }
         },
         "sitting_floor": {
-            # Minecart style. Legs -90 (Forward), Body 0, Arms -45 (Forward/Down)
-            "RightLegJoint": {"rot": {"x": -90}},
-            "LeftLegJoint": {"rot": {"x": -90}},
-            "RightArmJoint": {"rot": {"x": -45}},
-            "LeftArmJoint": {"rot": {"x": -45}}
+            # Minecart style. Legs 90 (Forward), Body 0, Arms 45 (Forward/Down)
+            "RightLegJoint": {"rot": {"x": 90}},
+            "LeftLegJoint": {"rot": {"x": 90}},
+            "RightArmJoint": {"rot": {"x": 45}},
+            "LeftArmJoint": {"rot": {"x": 45}}
         },
         "sitting_relaxed": {
-            # Leaning back. Body -15.
-            # Legs: If we want them flat on floor (-90 Global), and Body is -15 Global...
-            # Relative Leg = -90 - (-15) = -75.
-            "BodyJoint": {"rot": {"x": -15}},
-            "RightLegJoint": {"rot": {"x": -75}},
-            "LeftLegJoint": {"rot": {"x": -75}},
-            # Arms -60 (Reaching back). Relative to Body (-15).
-            # Global = -75.
-            "RightArmJoint": {"rot": {"x": -60}},
-            "LeftArmJoint": {"rot": {"x": -60}}
+            # User Redefinition: "Same as sitting floor, but arms are 90"
+            # So: Body 0, Legs 90, Arms 90.
+            "RightLegJoint": {"rot": {"x": 90}},
+            "LeftLegJoint": {"rot": {"x": 90}},
+            "RightArmJoint": {"rot": {"x": 90}},
+            "LeftArmJoint": {"rot": {"x": 90}}
         }
     }
 
