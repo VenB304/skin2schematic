@@ -124,32 +124,7 @@ def main():
         # Wait, if Rasterizer provides a Shell, and we verify neighbors, it would just confirm it.
         # Disabling legacy Hollow Logic check for speed.
         
-        # --- Sign Placement (Debug Gallery Only) ---
-        if args.pose == "debug_all":
-            # Place sign in front. 
-            # Center X = (min_x + max_x) // 2
-            # Front Z = min_z - 2? (Assuming Z+ is back?)
-            # Rig coordinates: Z+ is Back (Right Hand Rule match). Z- is Front.
-            # So Min Z is the front-most face. Place sign at Min Z - 2.
-            center_x_local = (local_min_x + local_max_x) // 2
-            front_z_local = min(b.z for b in blocks) - 2
-            
-            final_sign_x = int(center_x_local + offset_x)
-            final_sign_y = int(shift_y) # Floor level
-            final_sign_z = int(front_z_local)
-            
-            # Add to builder
-            builder.add_sign(
-                final_sign_x, final_sign_y, final_sign_z, 
-                text=pose_name, 
-                wall_sign=False, 
-                facing="north" # Facing North means text is on South side? Or facing towards North?
-                               # Standard Sign: Rotation needed to face camera looking at statue.
-                               # Statue looks South (-Z is front? No, usually +Z is South in MC).
-                               # Let's try default "north" (Rotation 8) or similar.
-                               # Actually, if Z- is front, we are looking at it from -Z towards +Z.
-                               # So sign should face -Z (North).
-            )
+        # --- Sign Placement Removed (User Request) ---
 
         for pb in blocks:
             c_key = (pb.r, pb.g, pb.b, pb.a)
