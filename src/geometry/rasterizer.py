@@ -6,7 +6,8 @@ from .primitives import BoxPart, PixelBlock, Node
 
 class Rasterizer:
     @staticmethod
-    def rasterize(parts: List[BoxPart], skin: Image.Image, solid: bool = False) -> List[PixelBlock]:
+    def rasterize(parts: List[BoxPart], skin: Image.Image, solid: bool = False, quality: int = 2, return_raw: bool = False):
+
         """
         Generates a list of colored blocks using Vectorized Inverse Mapping.
         Strategy:
@@ -17,6 +18,8 @@ class Rasterizer:
         5. Map Local Points -> UV -> Color.
         6. Apply Painters Algorithm (Overlays overwrite).
         7. Apply Hollow Optimization (Erosion) if needed.
+        
+        quality: 1 = Center sample only (Fast). 2 = 7 samples (Center + 6 faces) to fix cracks.
         """
         # Ensure skin is RGBA and numpy array
         if skin.mode != "RGBA":
@@ -71,8 +74,43 @@ class Rasterizer:
         flat_z = grid_z.ravel()
         
         total_voxels = flat_x.size
-        # World Sampling Points (Center of voxel)
-        world_points = np.stack((flat_x + 0.5, flat_y + 0.5, flat_z + 0.5, np.ones_like(flat_x)), axis=1)
+        
+        # Generate Samples
+        if quality > 1:
+            # Multi-sample: Center + 6 neighbors (0.3 offset)
+            offsets = [
+                (0.5, 0.5, 0.5), # Center
+                (0.2, 0.5, 0.5), (0.8, 0.5, 0.5), # X +/-
+                (0.5, 0.2, 0.5), (0.5, 0.8, 0.5), # Y +/-
+                (0.5, 0.5, 0.2), (0.5, 0.5, 0.8), # Z +/-
+            ]
+            num_samples = len(offsets)
+        else:
+            offsets = [(0.5, 0.5, 0.5)]
+            num_samples = 1
+
+        # Expand points: Repeat each voxel S times
+        # Shape: (N*S,)
+        flat_x_rep = np.repeat(flat_x, num_samples)
+        flat_y_rep = np.repeat(flat_y, num_samples)
+        flat_z_rep = np.repeat(flat_z, num_samples)
+        
+        # Tracking indices
+        voxel_indices = np.repeat(np.arange(total_voxels), num_samples)
+        
+        # Apply offsets
+        # Create offset array (S, 3) -> Tile to (N*S, 3)
+        off_arr = np.array(offsets) # (S, 3)
+        off_tiled = np.tile(off_arr, (total_voxels, 1)) # (N*S, 3)
+        
+        # World Sampling Points
+        # X, Y, Z, 1
+        world_points = np.stack((
+            flat_x_rep + off_tiled[:, 0],
+            flat_y_rep + off_tiled[:, 1],
+            flat_z_rep + off_tiled[:, 2],
+            np.ones_like(flat_x_rep)
+        ), axis=1)
         
         # Buffer to store result: (N, 4) - RGBA. Init with 0.
         # We can map back to 3D array for Hollow check later.
@@ -129,7 +167,9 @@ class Rasterizer:
                 cols = np.array([r, g, b, a], dtype=np.uint8)
                 
                 # Write to buffer
-                volume_colors[valid_indices] = cols
+                # Map back to voxel indices (for multi-sampling)
+                v_idxs = voxel_indices[valid_indices]
+                volume_colors[v_idxs] = cols
                 continue # Skip UV mapping
 
             # --- Textured Part (UV Map) ---
@@ -293,7 +333,8 @@ class Rasterizer:
                 
                 # Update Volume Buffer
                 if final_grid_indices.size > 0:
-                    volume_colors[final_grid_indices] = final_cols
+                    v_idxs = voxel_indices[final_grid_indices]
+                    volume_colors[v_idxs] = final_cols
                     
         # 3. Optimizations (Solid/Hollow)
         # Reshape volume to 3D
@@ -350,6 +391,9 @@ class Rasterizer:
         # Vectorized list creation?
         # Standard Python list comp is fast enough for <100k items
         
+        if return_raw:
+            return wx.astype(np.int32), wy.astype(np.int32), wz.astype(np.int32), final_colors
+
         # Ensure native types
         return [
             PixelBlock(int(wx[i]), int(wy[i]), int(wz[i]), int(r), int(g), int(b), int(a))

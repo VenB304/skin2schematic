@@ -17,8 +17,108 @@ class ColorMatcher:
             
         # Precompute RGB -> Lab for palette
         self.palette_lab = {}
+        # Lists for vectorized access
+        self.palette_ids_list = []
+        self.palette_lab_list = []
+        
         for block_id, rgb in self.palette.items():
-            self.palette_lab[block_id] = self.rgb_to_lab(*rgb)
+            lab = self.rgb_to_lab(*rgb)
+            self.palette_lab[block_id] = lab
+            self.palette_ids_list.append(block_id)
+            self.palette_lab_list.append(lab)
+            
+        import numpy as np
+        self.palette_lab_arr = np.array(self.palette_lab_list) # (K, 3)
+
+    def match_bulk(self, colors_rgba: "np.ndarray") -> "np.ndarray":
+        """
+        Vectorized color matching.
+        colors_rgba: (N, 4) uint8 numpy array
+        Returns: (N,) list or array of block_ids
+        """
+        import numpy as np
+        
+        # Filter transparent
+        # alpha < 128 -> None
+        # We handle this by returning None or "air"?
+        # Usually checking alpha before calling this is better, but let's handle it.
+        
+        # RGB -> Lab
+        # Vectorized RGB->Lab is needed.
+        # Reuse local or static logic? 
+        # We can just implement a fast approximate or full vector helper.
+        
+        r = colors_rgba[:, 0]
+        g = colors_rgba[:, 1]
+        b = colors_rgba[:, 2]
+        a = colors_rgba[:, 3]
+        
+        # Vectorized RGB->Lab
+        # Scale
+        r = r / 255.0
+        g = g / 255.0
+        b = b / 255.0
+        
+        # Pivot RGB
+        # mask = n > 0.04045
+        # ...
+        # Faster to use simple lambda?
+        # ((n + 0.055) / 1.055) ** 2.4
+        
+        def pivot_v(n):
+            return np.where(n > 0.04045, ((n + 0.055) / 1.055) ** 2.4, n / 12.92)
+            
+        rr = pivot_v(r)
+        gg = pivot_v(g)
+        bb = pivot_v(b)
+        
+        x = rr * 0.4124 + gg * 0.3576 + bb * 0.1805
+        y = rr * 0.2126 + gg * 0.7152 + bb * 0.0722
+        z = rr * 0.0193 + gg * 0.1192 + bb * 0.9505
+        
+        # XYZ -> Lab
+        def pivot_xyz_v(n):
+            return np.where(n > 0.008856, n ** (1/3), (7.787 * n) + (16/116))
+            
+        xn, yn, zn = 0.95047, 1.00000, 1.08883
+        
+        fx = pivot_xyz_v(x / xn)
+        fy = pivot_xyz_v(y / yn)
+        fz = pivot_xyz_v(z / zn)
+        
+        l_val = 116 * fy - 16
+        a_val = 500 * (fx - fy)
+        b_val = 200 * (fy - fz)
+        
+        # Shape (N, 3)
+        targets_lab = np.stack([l_val, a_val, b_val], axis=1)
+        
+        # Calculate Distances to Palette (K, 3)
+        # (N, 1, 3) - (1, K, 3) -> (N, K, 3)
+        # Dist sq = sum((...)**2, axis=2) -> (N, K)
+        
+        # Memory efficient: Process in chunks if N is huge?
+        # 100k blocks * 20 palette items = 2M floats. Tiny.
+        # But if palette is large... Minecraft has many blocks.
+        # Current palette is small (wool/concrete ~ 32 items).
+        
+        diff = targets_lab[:, np.newaxis, :] - self.palette_lab_arr[np.newaxis, :, :]
+        dists = np.sum(diff**2, axis=2)
+        
+        # Argmin
+        best_indices = np.argmin(dists, axis=1)
+        
+        # Map to IDs
+        # palette_ids_list is list of str.
+        # Use np array for fast indexing?
+        palette_ids_arr = np.array(self.palette_ids_list)
+        results = palette_ids_arr[best_indices]
+        
+        # Handle alpha
+        # results[a < 128] = None # Or "air"?
+        # Actually Rasterizer filters alpha usually.
+        
+        return results
 
     def _load_palettes(self) -> dict:
         import os
@@ -87,10 +187,6 @@ class ColorMatcher:
                     mapping[color] = block_id
         else:
             # Fallback for > 4096 colors (rare for skins but possible with noise)
-            # Just map commonly used pixels? 
-            # Or iterate pixel data.
-            # For simplicity, if getcolors fails (returns None), we can scan manually.
-            # But 4096 is limit for 64x64. So it should always work for skins.
             pixel_data = list(image.getdata())
             unique_colors = set(pixel_data)
             for color in unique_colors:
@@ -100,6 +196,42 @@ class ColorMatcher:
                     mapping[color] = block_id
                     
         return mapping
+
+    def load_cache_from_disk(self, path: str) -> dict:
+        import json
+        import os
+        if not os.path.exists(path):
+            return {}
+        try:
+            with open(path, 'r') as f:
+                raw = json.load(f)
+            # Convert keys from "r,g,b,a" string back to tuple
+            cache = {}
+            for k, v in raw.items():
+                try:
+                    parts = list(map(int, k.split(',')))
+                    cache[tuple(parts)] = v
+                except:
+                    pass
+            print(f"Loaded {len(cache)} cached colors.")
+            return cache
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+            return {}
+
+    def save_cache_to_disk(self, path: str, cache: dict):
+        import json
+        try:
+            # Convert keys to string "r,g,b,a"
+            raw = {}
+            for k, v in cache.items():
+                k_str = f"{k[0]},{k[1]},{k[2]},{k[3]}"
+                raw[k_str] = v
+            with open(path, 'w') as f:
+                json.dump(raw, f)
+            print(f"Saved {len(cache)} cached colors to {path}.")
+        except Exception as e:
+            print(f"Failed to save cache: {e}")
 
     @staticmethod
     def rgb_to_lab(r, g, b):

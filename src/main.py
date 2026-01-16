@@ -3,6 +3,8 @@ import sys
 import os
 import json
 import glob
+import multiprocessing
+import numpy as np
 from typing import Optional, List, Tuple
 
 # Adjust path to find modules if running from src directly
@@ -16,31 +18,40 @@ from schematic_builder import SchematicBuilder
 from geometry.rig import RigFactory
 from geometry.pose import PoseApplicator
 from geometry.rasterizer import Rasterizer
+from geometry.items import ItemFactory 
 
-def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, matcher: ColorMatcher, cache: dict) -> bool:
+def process_skin_wrapper(args):
     """
-    Process a single skin file. Returns True if successful.
+    Wrapper for multiprocessing.
+    args: (input_path, output_path, model, pose_name, solid, palette, cache_copy)
+    Returns: (bool, cache_updates)
     """
+    input_path, output_path, model, pose_name, solid, palette, cache_copy = args
+    # Re-init matcher to avoid pickling large objects or sharing state issues
+    matcher = ColorMatcher(mode=palette)
+    return process_skin(input_path, output_path, model, pose_name, solid, palette, matcher, cache_copy)
+
+def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
+    """
+    Process a single skin file. 
+    Returns: (Success, Cache_Updates_Dict)
+    """
+    local_cache_updates = {}
     try:
         try:
             skin_img = SkinLoader.load_skin(input_path)
         except Exception as e:
             print(f"Error loading skin {os.path.basename(input_path)}: {e}")
-            return False
+            return False, {}
 
         detected_model = model
         if detected_model == "auto":
             detected_model = SkinLoader.detect_model(skin_img)
-            # print(f"  Detected model: {detected_model}")
         
         # Determine Pose and Item
         pose_key = pose_name
         item_type = None
         item_material = None
-        
-        # Check for item variants in pose name
-        # e.g. "sword_charge_diamond" -> pose="sword_charge", item="sword", mat="diamond"
-        # e.g. "bow_aim" -> pose="bow_aim", item="bow"
         
         if pose_name.startswith("sword_charge"):
             pose_key = "sword_charge"
@@ -73,12 +84,7 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
         # Prepare List of Poses to Render
         poses_to_render = []
         if pose_key == "debug_all":
-            # Expand all poses
-            # For sword_charge, we add variants? Or just default?
-            # Let's add default variants for debug_all
             for name in sorted(PoseApplicator.POSES.keys()):
-                # If name assumes item, add it tuple style?
-                # Structure: (name, data, item_info)
                 p_item = None
                 p_mat = None
                 
@@ -89,10 +95,7 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
                     p_item = "bow"
                 
                 poses_to_render.append((name, PoseApplicator.get_pose(name), p_item, p_mat))
-                
-            # Add explicit variants for sword?
-            # User wants "sword variants" included
-            # So let's add sword_charge_diamond etc. to the list if debug_all
+                    
             if pose_key == "debug_all":
                 for mat in ["wood", "stone", "gold", "diamond", "netherite"]:
                     name = f"sword_charge_{mat}"
@@ -109,7 +112,7 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
         
         builder = SchematicBuilder(name=schem_name)
         
-        # Determine output path logic... (omitted for brevity, unchanged)
+        # Output Path Logic
         final_output = output_path
         if not final_output:
             output_dir = f"{base_name} output"
@@ -121,14 +124,13 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
              suffix = f"_{pose_name}" if pose_name != "debug_all" else "_debug_all"
              final_output = os.path.join(final_output, f"{base_name}{suffix}.litematic")
         
-        # Pre-compute unique colors
-        skin_color_cache = matcher.map_unique_colors(skin_img)
+        # Pre-compute unique colors logic is now handled per-pose or global?
+        # Doing it per-pose inside rasterization is more accurate for UVs but slower?
+        # Rasterizer now returns colors. We handle matching below.
         
         GAP_SIZE = 5
         last_max_x = None
         total_added = 0
-        
-        from geometry.items import ItemFactory # Import here to avoid circular
         
         def find_node(n, target):
             if n.name == target: return n
@@ -144,30 +146,30 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             # Attach Items
             parts = rig.get_parts()
             if p_item == "sword":
-                # Find RightArmJoint
                 hand_node = find_node(rig.root, "RightArmJoint")
                 if hand_node:
                     sword_parts = ItemFactory.create_sword(p_mat, hand_node)
                     parts.extend(sword_parts)
                     
             elif p_item == "bow":
-                # bow_aim pose rotates RightArm. So Bow in Right Hand.
                 hand_node = find_node(rig.root, "RightArmJoint")
                 if hand_node:
                     bow_parts = ItemFactory.create_bow(hand_node)
                     parts.extend(bow_parts)
             
-            blocks = Rasterizer.rasterize(parts, skin_img, solid=solid)
+            # Optimized Rasterizer call
+            # Returns raw numpy arrays
+            wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True)
             
-            if not blocks:
+            if wx.size == 0:
                 continue
                 
             # Auto Grounding
-            min_y = min(b.y for b in blocks)
+            min_y = np.min(wy)
             shift_y = -min_y
             
-            local_min_x = min(b.x for b in blocks)
-            local_max_x = max(b.x for b in blocks)
+            local_min_x = np.min(wx)
+            local_max_x = np.max(wx)
             
             if last_max_x is None:
                 offset_x = 0
@@ -178,38 +180,71 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             
             # Debug Labels
             if pose_name == "debug_all":
-                 front_z_local = min(b.z for b in blocks)
+                 front_z_local = np.min(wz)
                  sign_z = int(front_z_local - 1)
                  sign_x = int(offset_x)
                  sign_y = 0
                  
-                 # Truncate text for sign (Max 15 chars recommended)
                  disp_text = p_name
                  if p_name.startswith("sword_charge_"):
                      disp_text = p_name.replace("sword_charge_", "Sword ")
                  
                  builder.add_sign(sign_x, sign_y, sign_z, text=disp_text, facing="north")
-                 # print(f"    [X={sign_x}] Pose: {p_name}")
 
-            for pb in blocks:
-                c_key = (pb.r, pb.g, pb.b, pb.a)
-                block_id = skin_color_cache.get(c_key)
-                if not block_id:
-                     block_id = matcher.find_nearest(*c_key)
-                     skin_color_cache[c_key] = block_id
+            # Match Colors (Optimized)
+            # 1. Identify unique colors
+            # colors shape (N, 4)
+            u_colors, inverse = np.unique(colors, axis=0, return_inverse=True)
+            
+            u_ids = [None] * len(u_colors)
+            miss_indices = []
+            miss_colors = []
+            
+            # 2. Check Cache
+            for i, c in enumerate(u_colors):
+                key = tuple(c) # (r,g,b,a)
+                if key in cache:
+                    u_ids[i] = cache[key]
+                else:
+                    miss_indices.append(i)
+                    miss_colors.append(c)
+            
+            # 3. Batch Match Misses
+            if miss_colors:
+                miss_arr = np.array(miss_colors, dtype=np.uint8)
+                matched_ids = matcher.match_bulk(miss_arr)
                 
-                if block_id:
-                    builder.add_block(pb.x + int(offset_x), pb.y + int(shift_y), pb.z, block_id)
-                    total_added += 1
+                for idx, block_id, col in zip(miss_indices, matched_ids, miss_colors):
+                    u_ids[idx] = block_id
+                    # Update cache updates
+                    key = tuple(col)
+                    local_cache_updates[key] = block_id
+                    # Also update local scope cache to avoid re-matching same color in this loop
+                    cache[key] = block_id
+            
+            # 4. Map back to all pixels
+            u_ids_arr = np.array(u_ids)
+            all_ids = u_ids_arr[inverse]
+            
+            # 5. Bulk Add to Builder
+            # Apply offsets
+            final_x = wx + int(offset_x)
+            final_y = wy + int(shift_y)
+            final_z = wz
+            
+            coords = np.stack((final_x, final_y, final_z), axis=1)
+            builder.add_blocks_bulk(coords, all_ids)
+            total_added += len(all_ids)
 
         builder.save(final_output)
-        return True
+        return True, local_cache_updates
         
     except Exception as e:
         print(f"Error processing {input_path}: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        # Return empty updates on failure
+        return False, local_cache_updates
 
 def interactive_mode():
     print("\n=== Skin2Schematic Wizard ===")
@@ -236,7 +271,7 @@ def interactive_mode():
     else:
         print("Invalid selection.")
         return
-
+        
     # 2. Select Pose
     print("\nAvailable Poses:")
     print("0. standing (Default)")
@@ -259,11 +294,18 @@ def interactive_mode():
     print(f"\nProcessing {len(selected_files)} file(s) with pose '{pose_name}'...")
     
     matcher = ColorMatcher(mode="all")
+    # Load Cache
+    CACHE_FILE = "color_cache.json"
+    cache = matcher.load_cache_from_disk(CACHE_FILE)
     
     for idx, fpath in enumerate(selected_files):
         print(f"[{idx+1}/{len(selected_files)}] processing: {fpath}...")
-        process_skin(fpath, None, "auto", pose_name, False, "all", matcher, {})
-        
+        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", matcher, cache)
+        if updates:
+            cache.update(updates)
+            
+    # Save cache
+    matcher.save_cache_to_disk(CACHE_FILE, cache)
     print("Done!")
 
 def main():
@@ -278,7 +320,6 @@ def main():
     parser.add_argument("-m", "--model", default="auto", choices=["auto", "classic", "slim"], help="Model type")
     
     if len(sys.argv) == 1:
-        # No args -> Interactive
         interactive_mode()
         return
 
@@ -299,8 +340,6 @@ def main():
     if os.path.isfile(input_path):
         files_to_process.append(input_path)
     elif os.path.isdir(input_path):
-        # Scan dir
-        # Only pngs
         files_to_process = [os.path.join(input_path, f) for f in os.listdir(input_path) if f.lower().endswith('.png')]
         print(f"Found {len(files_to_process)} skins in directory.")
         
@@ -312,14 +351,50 @@ def main():
     matcher = ColorMatcher(mode=args.palette)
     pose = "debug_all" if args.debug else args.pose
     
-    # Process
-    success_count = 0
-    for idx, fpath in enumerate(files_to_process):
-        print(f"[{idx+1}/{len(files_to_process)}] Processing {os.path.basename(fpath)}...")
-        if process_skin(fpath, args.output, args.model, pose, args.solid, args.palette, matcher, {}):
-            success_count += 1
+    # Load Cache
+    CACHE_FILE = "color_cache.json"
+    global_cache = matcher.load_cache_from_disk(CACHE_FILE)
+    
+    # Multiprocessing
+    cpu_count = multiprocessing.cpu_count()
+    workers = max(1, min(cpu_count - 1, 8)) # Use up to 8 cores, leave 1 free
+    
+    if len(files_to_process) > 1:
+        print(f"Batch processing {len(files_to_process)} skins using {workers} workers...")
+        
+        # Prepare Tasks
+        tasks = [
+            (f, args.output, args.model, pose, args.solid, args.palette, global_cache)
+            for f in files_to_process
+        ]
+        
+        success_count = 0
+        
+        # Use simple map if workers > 1
+        if workers > 1:
+            with multiprocessing.Pool(processes=workers) as pool:
+                results = pool.map(process_skin_wrapper, tasks)
+                
+            for success, updates in results:
+                if success: success_count += 1
+                if updates: global_cache.update(updates)
+        else:
+            # Serial fallback
+            for task in tasks:
+                 s, u = process_skin_wrapper(task)
+                 if s: success_count += 1
+                 if u: global_cache.update(u)
+    else:
+        # Single file
+        print(f"Processing {files_to_process[0]}...")
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, matcher, global_cache)
+        success_count = 1 if success else 0
+        if updates: global_cache.update(updates)
             
+    # Save Cache
+    matcher.save_cache_to_disk(CACHE_FILE, global_cache)
     print(f"\nBatch Complete. {success_count}/{len(files_to_process)} successful.")
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support() # Windows support
     main()

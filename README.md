@@ -1,96 +1,98 @@
-# Skin2Schematic
+# Minecraft Skin-to-Statue Generator
 
-**Skin2Schematic** is a powerful Python tool that converts Minecraft Java Edition skins into **1:1 scale statues**, ready for building in-game via Litematica. It supports complex poses, 3D items, batch processing, and an interactive wizard.
+**A powerful, optimized Python tool that converts Minecraft skins into 1:1 scale 3D `.litematic` statues.**
 
-## Features
+This tool takes any Minecraft skin (Modern or Legacy) and generates a precise 3D schematic, handling complex geometry, overlays, and poses automatically. It allows you to create massive statue galleries or single player decorations in seconds.
 
-- **1:1 Scale Statues**: 1 pixel equals 1 block.
-- **Robust Pose System**: Choose from **17+ poses** including `walking`, `bow_aim`, `superman`, and `sitting`.
-- **3D Items**: Statues can hold **Swords** (Wood, Stone, Iron, Gold, Diamond, Netherite) and **Bows**.
-- **Interactive Wizard**: Run without arguments to launch a user-friendly menu.
-- **Batch Processing**: Convert an entire folder of skins at once.
-- **Smart Geometry**: 
-    - **Solid Poses**: Inverse mapping voxelizer ensures gap-free solid geometry even with rotations.
-    - **Auto-Grounding**: Statues are automatically aligned to the floor.
-    - **Layer Support**: Handles secondary layers (hat/jacket) properly with collision priority.
-- **Configuration**: Customizable block palettes via `palette.json`.
+---
 
-## Installation
+## ✨ Key Features
 
-1.  **Clone the repository**:
+*   **Smart Geometry & Overlays**: Accurately handles the secondary skin layer (Jacket, Hat, Sleeves) without unsightly gaps or floating pixels.
+*   **Pose System**: Built-in rigging system includes dynamic poses like *Walking*, *Running*, *Sitting*, *Zombie*, *Facepalm*, and *Hero Landing*.
+*   **Legacy Support**: Automatically detects and fixes old 64x32 (pre-1.8) skins by upgrading them to 64x64 and mirroring limbs.
+*   **Batch Processing**: Capable of processing folders containing thousands of skins in parallel using multi-core processing.
+*   **Performance Cache**: Uses intelligent color caching to speed up block matching significantly over time.
+*   **Anti-Crack Technology**: Uses 7-point oversampling to prevent "cracks" or holes in the mesh when limbs are rotated at complex angles.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+*   Python 3.8+ installed.
+*   Install dependencies:
     ```bash
-    git clone https://github.com/venb/skin2schematic.git
-    cd skin2schematic
+    pip install -r requirements.txt
     ```
 
-2.  **Install dependencies**:
-    ```bash
-    pip install numpy litemapy nbtlib Pillow
-    ```
+### Interactive Wizard (The Easy Way)
+Simply run the script without arguments to launch the interactive wizard:
 
-## Usage
-
-### 1. Interactive Wizard (Recommended)
-Simply run the script without arguments. It will double-check your current folder for `.png` files and ask you what to do (Scan Skins -> Select Pose).
 ```bash
 python src/main.py
 ```
 
-### 2. Command Line Interface (CLI)
+Follow the prompts to:
+1.  Select a skin file (or process all in the folder).
+2.  Choose a pose (e.g., `standing`, `walking`).
+3.  Watch it generate your `.litematic` file!
 
-**Single File:**
+---
+
+## 💻 Command Line Usage
+
+For advanced users and batch operations, use the command line arguments:
+
+| Argument | Description | Example |
+| :--- | :--- | :--- |
+| `-i`, `--input` | Input skin file or directory | `-i my_skin.png` or `-i ./skins/` |
+| `-o`, `--output` | Output filename or directory | `-o ./statues/` |
+| `-p`, `--pose` | Specific pose name to apply | `-p running` |
+| `--model` | Force model type (`classic` or `slim`) | `--model slim` |
+| `--solid` | Fill the inside of the statue (default is hollow) | `--solid` |
+| `--debug` | Generates a "Gallery" of all poses for the skin | `--debug` |
+
+**Example: Batch process a folder of skins into "Walking" statues:**
 ```bash
-python src/main.py -i steve.png -p walking
+python src/main.py -i ./my_skins_folder/ -o ./output_folder/ -p walking
 ```
 
-**Batch Processing (Folder):**
-```bash
-python src/main.py -i ./my_skins/ -o ./output/ -p bow_aim
-```
+---
 
-**Debug Gallery:**
-Generates a massive schematic containing ALL available poses and item variants for a specific skin.
-```bash
-python src/main.py -i steve.png --debug
-```
+## 📚 Pose Library Reference
 
-### Options
-- `-i`, `--input`: Input file (`skin.png`) or directory (`./skins`).
-- `-o`, `--output`: Output file or directory (Default `output/`).
-- `-p`, `--pose`: Pose name (default: `standing`).
-- `--list-poses`: List all available poses.
-- `--debug`: Generate debug gallery (Alias for `--pose debug_all`).
-- `--palette`: Block palette (`all`, `wool`, `concrete`, `terracotta`).
-- `--solid`: Disable hollow optimization (fill inside with blocks).
+Use these keys with the `--pose` argument:
 
-## Available Poses
-Use `--list-poses` to see the full list.
-- **Standard**: `standing`, `walking`, `zombie`, `t_pose`
-- **Sitting**: `floor_sit`, `chair_sit`, `chair_sit_zombie`
-- **Action**: `sword_charge` (Variants: `_diamond`, `_gold`, etc.), `bow_aim`, `hero_landing`
-- **Social**: `waving`, `pointing`, `facepalm`, `shrug`
-- **Movement**: `running`, `sneaking` (Crouches 1.5 blocks), `flying` (Superman)
+*   **Basics**: `standing` (Default), `t_pose`
+*   **Movement**: `walking`, `running`, `sneaking`, `flying` (Superman style)
+*   **Sitting**: `floor_sit`, `chair_sit`, `chair_sit_zombie`
+*   **Action**: `hero_landing`, `bow_aim`, `sword_charge`
+*   **Emotes**: `waving`, `pointing`, `shrug`, `facepalm`, `zombie`
 
-## Configuration
-Block palettes can be customized in `src/palette.json`. You can modify which blocks are used for color matching without editing Python code.
+*Tip: Run `python src/main.py --list-poses` to see the full up-to-date list.*
 
-## Custom Poses
-You can create your own poses by creating a `.json` file.
-1.  Create a file (e.g., `dab.json`).
-2.  Define rotations (in degrees) for joints. valid joints: `HeadJoint`, `BodyJoint`, `RightArmJoint`, `LeftArmJoint`, `RightLegJoint`, `LeftLegJoint`.
-    - **rot**: Rotation `x` (Pitch), `y` (Yaw), `z` (Roll).
-    - **pos**: Optional position offset (x, y, z).
+---
 
-*Example `dab.json`:*
-```json
-{
-    "HeadJoint": {"rot": {"x": 45, "y": 30}},
-    "RightArmJoint": {"rot": {"x": -135, "y": 45}},
-    "LeftArmJoint": {"rot": {"x": -45, "y": 45}}
-}
-```
+## 🎮 How to Import into Minecraft
 
-**Usage:**
-```bash
-python src/main.py -p dab.json
-```
+1.  **Locate Output**: Find the generated `.litematic` file (e.g., `Statue_Steve_walking.litematic`).
+2.  **Move to Folder**: Copy the file to your Minecraft installation's schematic folder:
+    *   `%appdata%/.minecraft/schematics/` (Windows)
+    *   `~/.minecraft/schematics/` (Mac/Linux)
+3.  **Load in Game**:
+    *   Install the **Litematica** mod for your version.
+    *   Press `M` (default) to open menu → **Load Schematics**.
+    *   Select your statue and place it!
+    *   *Note: The anchor point is located between the statue's feet.*
+
+---
+
+## 🔧 Troubleshooting
+
+| Issue | Solution |
+| :--- | :--- |
+| **Skin looks black/garbled** | Ensure the input is a valid Minecraft Skin (64x64 or 64x32 PNG). Non-square images or HD skins (128x128) are not currently supported. |
+| **"Module not found" error** | Run `pip install -r requirements.txt` again to ensure `litemapy`, `Pillow`, and `numpy` are installed. |
+| **Window closes instantly** | Open `cmd` or Terminal, navigate to the folder, and run `python src/main.py` manually to see the error message. |
+| **Cracks in mesh** | This is usually fixed by the oversampling engine. If issues persist, try a simpler pose. |

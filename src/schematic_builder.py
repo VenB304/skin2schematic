@@ -33,6 +33,25 @@ class SchematicBuilder:
             'facing': facing
         })
 
+    def add_blocks_bulk(self, coords_matrix, block_ids):
+        """
+        Bulk add blocks.
+        coords_matrix: (N, 3) numpy array
+        block_ids: (N,) list or array of strings
+        """
+        # Convert to tuple keys and update dict 
+        # (This is still python overhead but faster than individual calls)
+        # Using zip is reasonably fast.
+        
+        # Ensure block_ids is iterable
+        if len(coords_matrix) != len(block_ids):
+            print("Warning: Bulk add mismatch")
+            return
+            
+        # Optimization: Map to list of tuples
+        keys = map(tuple, coords_matrix)
+        self.blocks.update(zip(keys, block_ids))
+
     def save(self, output_path: str):
         if not self.blocks:
             print("Warning: No blocks to save!")
