@@ -1,10 +1,19 @@
 import argparse
 import sys
 import os
+import json
+
+# Adjust path to find modules if running from src directly
+# sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 from skin_loader import SkinLoader
-from geometry import SkinGeometry
 from color_matching import ColorMatcher
 from schematic_builder import SchematicBuilder
+
+# New Geometry System
+from geometry.rig import RigFactory
+from geometry.pose import PoseApplicator
+from geometry.rasterizer import Rasterizer
 
 def main():
     parser = argparse.ArgumentParser(description="Convert Minecraft skin to Litematic statue.")
@@ -12,6 +21,7 @@ def main():
     parser.add_argument("-o", "--output", help="Output file path (default: input_name.litematic)")
     parser.add_argument("-p", "--palette", choices=["mixed", "concrete", "wool", "terracotta"], default="mixed", help="Block palette to use")
     parser.add_argument("-m", "--model", choices=["auto", "classic", "slim"], default="auto", help="Skin model type")
+    parser.add_argument("--pose", help="Pose name (standing, tpose) or path to JSON file", default="standing")
 
     args = parser.parse_args()
 
@@ -29,18 +39,50 @@ def main():
     else:
         print(f"Using model: {model}")
 
-    print("Generating geometry...")
-    pixel_blocks = SkinGeometry.generate_blocks(skin_img, model=model)
-    print(f"Generated {len(pixel_blocks)} pixels.")
+    # --- New Geometry Pipeline ---
+    print("Initializing Rig...")
+    rig = RigFactory.create_rig(model_type=model)
+    
+    # Apply Pose
+    print(f"Applying pose: {args.pose}")
+    pose_data = {}
+    if args.pose == "standing":
+        pose_data = PoseApplicator.get_standing_pose()
+    elif args.pose == "tpose":
+        pose_data = PoseApplicator.get_t_pose()
+    elif args.pose.endswith(".json"):
+        if os.path.exists(args.pose):
+            with open(args.pose, 'r') as f:
+                pose_data = json.load(f)
+        else:
+            print(f"Warning: Pose file {args.pose} not found. Using standing.")
+    
+    PoseApplicator.apply_pose(rig, pose_data)
+    
+    print("Rasterizing geometry (Inverse Mapping)...")
+    pixel_blocks = Rasterizer.rasterize(rig.get_parts(), skin_img)
+    print(f"Generated {len(pixel_blocks)} solid blocks.")
 
+    # --- Color Matching ---
     print(f"Matching colors (Palette: {args.palette})...")
     matcher = ColorMatcher(mode=args.palette)
     
-    builder = SchematicBuilder(name=f"Statue_{args.input.split('/')[-1].split('.')[0]}", author=os.getlogin() if hasattr(os, 'getlogin') else "Skin2Schematic")
+    # Using 'rig.root.name' or input name for schematic
+    schem_name = f"Statue_{os.path.basename(args.input).split('.')[0]}" if "http" not in args.input else "Statue_Skin"
+    builder = SchematicBuilder(name=schem_name)
     
     added_count = 0
+    # Basic caching for performance
+    color_cache = {}
+    
     for pb in pixel_blocks:
-        block_id = matcher.find_nearest(pb.r, pb.g, pb.b, pb.a)
+        c_key = (pb.r, pb.g, pb.b, pb.a)
+        if c_key in color_cache:
+            block_id = color_cache[c_key]
+        else:
+            block_id = matcher.find_nearest(pb.r, pb.g, pb.b, pb.a)
+            color_cache[c_key] = block_id
+            
         if block_id:
             builder.add_block(pb.x, pb.y, pb.z, block_id)
             added_count += 1
@@ -52,12 +94,10 @@ def main():
         base_name = os.path.basename(args.input)
         if '.' in base_name:
             base_name = base_name.rsplit('.', 1)[0]
-        # Clean up username if input was username?
         if "http" in args.input:
-            base_name = "downloaded_skin"
-        # If input doesn't look like a file, trust basename logic or just use "output"?
-        # If input is "Ven", basename is "Ven".
-        output_path = f"{base_name}_statue.litematic"
+            base_name = "downloaded_statue"
+        
+        output_path = f"{base_name}_{args.pose}.litematic"
 
     print(f"Saving to {output_path}...")
     try:
