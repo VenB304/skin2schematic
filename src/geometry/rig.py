@@ -54,13 +54,23 @@ class RigFactory:
         head_joint.origin = (0, 12, 0)
         
         # Arm Joints (Shoulders)
-        # Pivot: EDGE of Body. (X = 4 or -4). Y = 12 (Top of Body).
-        # This ensures that when rotated, the arm pivots around the corner/hinge, keeping it flush.
+        # Pivot Logic:
+        # To ensure the Top Face of a rotated arm (T-Pose) is flush with the Top of Body (Global Y=24),
+        # we must lower the pivot.
+        # Rotated Arm Height = Arm Width (Rotation X->Y).
+        # We want Rotated Top to be at Y=24.
+        # Rotated Top = Pivot Y + Arm Width.
+        # So Pivot Y = 24 - Arm Width.
+        # Relative to BodyJoint (Y=12): Pivot Local Y = 12 - Arm Width.
+        
+        pivot_y_local = 12 - arm_w
+        
+        # Right Arm Joint
         r_arm_joint = Node("RightArmJoint", parent=body_joint)
-        r_arm_joint.origin = (4, 12, 0)
+        r_arm_joint.origin = (4, pivot_y_local, 0)
         
         l_arm_joint = Node("LeftArmJoint", parent=body_joint)
-        l_arm_joint.origin = (-4, 12, 0)
+        l_arm_joint.origin = (-4, pivot_y_local, 0)
         
         # Leg Joints (Hips)
         # Pivot: Center of Leg Top relative to BodyJoint (Y=0).
@@ -86,30 +96,34 @@ class RigFactory:
         
         # 2. ARMS (Sleeves > Base)
         # Right Arm
-        # Pivot is at X=4 (Inner Edge).
-        # Arm must extend from 0 to arm_w (Local).
-        # Y goes Down (-12..0).
+        # Pivot Y is lowered by arm_w.
+        # But Upright Arm must still extend from Y=12 to Y=24 (Global).
+        # Relative to Pivot (Y = 24 - arm_w):
+        # Top (24) is at y = arm_w.
+        # Bottom (12) is at y = 12 - (24 - arm_w) = arm_w - 12.
+        # So Y range: [arm_w - 12, arm_w].
+        # Length is 12. Correct.
+        # Origin Y = arm_w - 12.
+        # E.g. Classic: arm_w=4. Origin Y = 4-12 = -8. Range -8..4.
         r_arm_uv = RigFactory._create_box_uv(40, 16, arm_w, 12, 4)
         r_arm = BoxPart("RightArm", (arm_w, 12, 4), r_arm_uv, parent=r_arm_joint)
-        r_arm.origin = (0, -12, -2) # Valid for Classic(4) and Slim(3). Starts at 0.
+        r_arm.origin = (0, arm_w - 12, -2) 
         priority_parts.append(r_arm)
         
         r_sleeve_uv = RigFactory._create_box_uv(40, 32, arm_w, 12, 4)
         r_sleeve = BoxPart("RightSleeve", (arm_w + 2, 14, 6), r_sleeve_uv, parent=r_arm_joint, is_overlay=True)
-        r_sleeve.origin = (-1, -13, -3) # Expands by 1 in all directions relative to (0, -12, -2)
+        r_sleeve.origin = (-1, arm_w - 12 - 1, -3) # Expands by 1
         priority_parts.append(r_sleeve)
         
         # Left Arm
-        # Pivot at X=-4 (Inner Edge).
-        # Arm extends Left (-arm_w .. 0).
         l_arm_uv = RigFactory._create_box_uv(32, 48, arm_w, 12, 4)
         l_arm = BoxPart("LeftArm", (arm_w, 12, 4), l_arm_uv, parent=l_arm_joint)
-        l_arm.origin = (-arm_w, -12, -2) # e.g. -4..0
+        l_arm.origin = (-arm_w, arm_w - 12, -2) 
         priority_parts.append(l_arm)
         
         l_sleeve_uv = RigFactory._create_box_uv(48, 48, arm_w, 12, 4)
         l_sleeve = BoxPart("LeftSleeve", (arm_w + 2, 14, 6), l_sleeve_uv, parent=l_arm_joint, is_overlay=True)
-        l_sleeve.origin = (-arm_w - 1, -13, -3)
+        l_sleeve.origin = (-arm_w - 1, arm_w - 12 - 1, -3)
         priority_parts.append(l_sleeve)
         
         # 3. LEGS
