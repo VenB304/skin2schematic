@@ -124,13 +124,38 @@ def main():
         # Wait, if Rasterizer provides a Shell, and we verify neighbors, it would just confirm it.
         # Disabling legacy Hollow Logic check for speed.
         
-        # --- Sign Placement Removed (User Request) ---
+        last_max_x = local_max_x + offset_x
+        
+        # --- Debug Labels ---
+        if args.pose == "debug_all":
+            # Sign Placement
+            # "Exactly 1 block in front of feet"
+            # Feet/Front is min_z (assuming -Z is front, which matches Rig)
+            # So front block is min_z - 1.
+            front_z_local = min(b.z for b in blocks)
+            sign_z = int(front_z_local - 1)
+            sign_x = int(offset_x) # Centered on anchor
+            
+            # Fix: Always place sign at world Y=0 (Schematic Floor)
+            # Since shift_y grounds the statue to start at 0, 0 is the correct floor level.
+            sign_y = 0 
+            
+            builder.add_sign(
+                sign_x, sign_y, sign_z,
+                text=pose_name,
+                wall_sign=False,
+                facing="north" # Rotation 8 (Face -Z)
+            )
+            
+            # Console Map Entry
+            print(f"[X={sign_x}] Pose: {pose_name}")
 
         for pb in blocks:
-            c_key = (pb.r, pb.g, pb.b, pb.a)
+            c_key = (pb.r, pb.g, pb.b, pb.a) # ... rest of loop unchanged
             if c_key in color_cache:
                 block_id = color_cache[c_key]
             else:
+                # Fallback
                 block_id = matcher.find_nearest(pb.r, pb.g, pb.b, pb.a)
                 color_cache[c_key] = block_id
                 

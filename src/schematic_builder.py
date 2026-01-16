@@ -104,21 +104,47 @@ class SchematicBuilder:
                     msg_json = f'{{"text":"{s["text"]}"}}'
                     
                     # NBT
-                    nbt = Compound({
+                    # NBT
+                    # We include BOTH modern (1.20+ front_text) and legacy (Text1-4) formats
+                    # to ensure compatibility.
+                    
+                    nbt_dict = {
                         "id": String("minecraft:sign"),
                         "x": Int(lx),
                         "y": Int(ly), 
                         "z": Int(lz),
-                        "front_text": Compound({
-                            "messages": List([
-                                String(msg_json),
-                                String('{"text":""}'),
-                                String('{"text":""}'),
-                                String('{"text":""}')
-                            ])
-                        }),
                         "is_waxed": Int(0)
+                    }
+                    
+                    # Modern (1.20+)
+                    nbt_dict["front_text"] = Compound({
+                        "messages": List([
+                            String(msg_json),
+                            String('{"text":""}'),
+                            String('{"text":""}'),
+                            String('{"text":""}')
+                        ]),
+                        "has_glowing_text": Int(0),
+                        "color": String("black")
                     })
+                    nbt_dict["back_text"] = Compound({
+                        "messages": List([
+                            String('{"text":""}'),
+                            String('{"text":""}'),
+                            String('{"text":""}'),
+                            String('{"text":""}')
+                        ]),
+                        "has_glowing_text": Int(0),
+                        "color": String("black")
+                    })
+
+                    # Legacy (Pre-1.20)
+                    nbt_dict["Text1"] = String(msg_json)
+                    nbt_dict["Text2"] = String('{"text":""}')
+                    nbt_dict["Text3"] = String('{"text":""}')
+                    nbt_dict["Text4"] = String('{"text":""}')
+
+                    nbt = Compound(nbt_dict)
                     
                     te = TileEntity(nbt)
                     reg.tile_entities.append(te)
