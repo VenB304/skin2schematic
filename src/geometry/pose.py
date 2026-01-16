@@ -77,13 +77,14 @@ class PoseApplicator:
             # Corrected from -90 (Backward) to 90 (Forward)
             # User req: "2 blocks too high". Default pivot Y=12 local (24 global).
             # Shift down by 2 -> Y=10 local.
+            # User req: "Shift arms 2 blocks back". -> Z=2.
             "RightArmJoint": {
                 "rot": {"x": 90},
-                "pos": {"x": 4, "y": 10, "z": 0}
+                "pos": {"x": 4, "y": 10, "z": 2}
             },
             "LeftArmJoint": {
                 "rot": {"x": 90},
-                "pos": {"x": -4, "y": 10, "z": 0}
+                "pos": {"x": -4, "y": 10, "z": 2}
             }
         },
         "tpose": {
@@ -99,18 +100,32 @@ class PoseApplicator:
         },
         "sitting_floor": {
             # Minecart style. Legs 90 (Forward), Body 0, Arms 45 (Forward/Down)
+            # Arms shifted back 2 blocks (Z=2)
             "RightLegJoint": {"rot": {"x": 90}},
             "LeftLegJoint": {"rot": {"x": 90}},
-            "RightArmJoint": {"rot": {"x": 45}},
-            "LeftArmJoint": {"rot": {"x": 45}}
+            "RightArmJoint": {
+                "rot": {"x": 45},
+                "pos": {"x": 4, "y": 24, "z": 2}
+            },
+            "LeftArmJoint": {
+                "rot": {"x": 45},
+                "pos": {"x": -4, "y": 24, "z": 2}
+            }
         },
         "sitting_relaxed": {
             # User Redefinition: "Same as sitting floor, but arms are 90"
             # So: Body 0, Legs 90, Arms 90.
+            # Arms shifted back 2 blocks (Z=2)
             "RightLegJoint": {"rot": {"x": 90}},
             "LeftLegJoint": {"rot": {"x": 90}},
-            "RightArmJoint": {"rot": {"x": 90}},
-            "LeftArmJoint": {"rot": {"x": 90}}
+            "RightArmJoint": {
+                "rot": {"x": 90},
+                "pos": {"x": 4, "y": 24, "z": 2}
+            },
+            "LeftArmJoint": {
+                "rot": {"x": 90},
+                "pos": {"x": -4, "y": 24, "z": 2}
+            }
         }
     }
 
