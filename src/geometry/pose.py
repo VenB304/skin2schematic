@@ -73,9 +73,10 @@ class PoseApplicator:
             "LeftArmJoint": {"rot": {"x": 20}}    # Backward
         },
         "zombie": {
-            # Arms raised forward 90 degrees (Pitch -90)
-            "RightArmJoint": {"rot": {"x": -90}},
-            "LeftArmJoint": {"rot": {"x": -90}}
+            # Arms raised forward 90 degrees (Pitch 90)
+            # Corrected from -90 (Backward) to 90 (Forward)
+            "RightArmJoint": {"rot": {"x": 90}},
+            "LeftArmJoint": {"rot": {"x": 90}}
         },
         "tpose": {
             # Specific T-Pose with translation fix
@@ -87,6 +88,25 @@ class PoseApplicator:
                 "rot": {"z": -90},
                 "pos": {"x": -4, "y": 8, "z": 0} 
             }
+        },
+        "sitting_floor": {
+            # Minecart style. Legs -90 (Forward), Body 0, Arms -45 (Forward/Down)
+            "RightLegJoint": {"rot": {"x": -90}},
+            "LeftLegJoint": {"rot": {"x": -90}},
+            "RightArmJoint": {"rot": {"x": -45}},
+            "LeftArmJoint": {"rot": {"x": -45}}
+        },
+        "sitting_relaxed": {
+            # Leaning back. Body -15.
+            # Legs: If we want them flat on floor (-90 Global), and Body is -15 Global...
+            # Relative Leg = -90 - (-15) = -75.
+            "BodyJoint": {"rot": {"x": -15}},
+            "RightLegJoint": {"rot": {"x": -75}},
+            "LeftLegJoint": {"rot": {"x": -75}},
+            # Arms -60 (Reaching back). Relative to Body (-15).
+            # Global = -75.
+            "RightArmJoint": {"rot": {"x": -60}},
+            "LeftArmJoint": {"rot": {"x": -60}}
         }
     }
 

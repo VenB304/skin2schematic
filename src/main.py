@@ -76,7 +76,10 @@ def main():
     color_cache = {}
     
     total_added = 0
-    gallery_spacing = 24 # 16 blocks between centers (approx) + ample room
+    
+    # Dynamic Spacing Logic
+    last_max_x = None
+    GAP_SIZE = 5
     
     for idx, (pose_name, pose_data) in enumerate(poses_to_generate):
         print(f"[{idx+1}/{len(poses_to_generate)}] Processing Pose: {pose_name}")
@@ -87,8 +90,32 @@ def main():
         
         blocks = Rasterizer.rasterize(rig.get_parts(), skin_img)
         
-        # Offset for gallery
-        x_offset = idx * gallery_spacing
+        if not blocks:
+            continue
+            
+        # --- Auto-Grounding ---
+        # Find Min Y
+        min_y = min(b.y for b in blocks)
+        shift_y = -min_y
+        
+        # Apply Shift
+        # We can update the PixelBlock objects directly or apply during adding.
+        # Let's apply during adding/bounds calc.
+        
+        # Calculate local bounds (With Shift Applied)
+        local_min_x = min(b.x for b in blocks)
+        local_max_x = max(b.x for b in blocks)
+        
+        # Determine Offset
+        if last_max_x is None:
+            # First statue.
+            offset_x = 0
+        else:
+            # We want current_min_x (post-shift) = last_max_x + GAP
+            offset_x = last_max_x + GAP_SIZE - local_min_x
+            
+        # Update bounds tracker for next iteration
+        last_max_x = local_max_x + offset_x
         
         for pb in blocks:
             c_key = (pb.r, pb.g, pb.b, pb.a)
@@ -99,8 +126,8 @@ def main():
                 color_cache[c_key] = block_id
                 
             if block_id:
-                # Add X offset
-                builder.add_block(pb.x + x_offset, pb.y, pb.z, block_id)
+                # Add X offset & Y Shift
+                builder.add_block(pb.x + int(offset_x), pb.y + int(shift_y), pb.z, block_id)
                 total_added += 1
                 
     print(f"Total blocks mapped: {total_added}")
