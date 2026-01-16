@@ -77,6 +77,7 @@ def main():
     color_cache = {}
     
     GAP_SIZE = 5
+    last_max_x = None
     
     # Process Poses
     for idx, (pose_name, pose_data) in enumerate(poses_to_generate):
