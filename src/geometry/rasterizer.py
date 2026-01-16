@@ -114,8 +114,27 @@ class Rasterizer:
             if not np.any(mask):
                 continue
                 
-            # Filter valid points
             valid_indices = np.where(mask)[0]
+            
+            # --- Solid Color Override (Item Support) ---
+            if part.color:
+                r, g, b = part.color
+                a = 255
+                # For all valid pixels in this volume, apply the solid color.
+                # We simply write to the volume buffer.
+                # The painter's algorithm order assumes later parts overwrite earlier ones.
+                # Since we are iterating 'sorted_parts', we just overwrite.
+                
+                # Create color array
+                cols = np.array([r, g, b, a], dtype=np.uint8)
+                
+                # Write to buffer
+                volume_colors[valid_indices] = cols
+                continue # Skip UV mapping
+
+            # --- Textured Part (UV Map) ---
+            
+            # Filter valid points
             vlx = lx[valid_indices]
             vly = ly[valid_indices]
             vlz = lz[valid_indices]

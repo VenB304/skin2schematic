@@ -169,7 +169,7 @@ class PoseApplicator:
             # Let's try Z-based "High Side" wave.
             # Z=135 (Diagonal Up/Right).
             "RightArmJoint": {"rot": {"z": 135},
-            "pos": {"x": 6, "y": 10, "z": -2}}
+            "pos": {"x": 4, "y": 10, "z": -2}}
         },
         "pointing": {
             "RightArmJoint": {"rot": {"x": 90},
@@ -185,8 +185,9 @@ class PoseApplicator:
             # Try: Pitch -50 (Up/Forward). Yaw -45 (Left). Roll?
             # Wait, Face is high.
             # Try: X=-150 (High Up), Z=-30 (In).
-            "RightArmJoint": {"rot": {"x": 140, "z": 32},
-            "pos": {"x": 4, "y": 10, "z": -2}}
+            "RightArmJoint": {
+                "rot": {"x": 160, "z": 36},
+                "pos": {"x": 4, "y": 8, "z": -2}}
         },
         "shrug": {
             "RightArmJoint": {"rot": {"z": 30, "x": 10}},
@@ -195,8 +196,10 @@ class PoseApplicator:
 
         # --- Action / Combat ---
         "bow_aim": {
-            "RightArmJoint": {"rot": {"x": -90, "y": 45}},
-            "LeftArmJoint": {"rot": {"x": -90}}
+            "RightArmJoint": {
+                "rot": {"x": 90, "y": 45}},
+            "LeftArmJoint": {
+                "rot": {"x": 90}}
         },
         "sword_charge": {
             "RightArmJoint": {"rot": {"x": 180}}
