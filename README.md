@@ -1,69 +1,75 @@
 # Skin2Schematic
 
-**Skin2Schematic** is a Python tool that converts Minecraft Java Edition skins into 1:1 scale standing statues in `.litematic` format. It supports local files, URLs, and Minecraft usernames.
+**Skin2Schematic** is a powerful Python tool that converts Minecraft Java Edition skins into **1:1 scale statues**, ready for building in-game via Litematica. It supports complex poses, 3D items, batch processing, and an interactive wizard.
 
 ## Features
 
-- **1:1 Scale**: 1 pixel equals 1 block.
-- **Model Detection**: Automatically detects Classic (Steve) vs. Slim (Alex) arm models.
-- **Full Layer Support**: Generates the base body and the outer overlay (hat, jacket, sleeves, pants) as a 1-block-thick shell.
-- **Smart Color Matching**: Maps skin colors to Minecraft blocks using configurable palettes (Mixed, Concrete, Wool, Terracotta).
-- **Metadata**: Includes author and timestamp in the schematic file.
+- **1:1 Scale Statues**: 1 pixel equals 1 block.
+- **Robust Pose System**: Choose from **17+ poses** including `walking`, `bow_aim`, `superman`, and `sitting`.
+- **3D Items**: Statues can hold **Swords** (Wood, Stone, Iron, Gold, Diamond, Netherite) and **Bows**.
+- **Interactive Wizard**: Run without arguments to launch a user-friendly menu.
+- **Batch Processing**: Convert an entire folder of skins at once.
+- **Smart Geometry**: 
+    - **Solid Poses**: Inverse mapping voxelizer ensures gap-free solid geometry even with rotations.
+    - **Auto-Grounding**: Statues are automatically aligned to the floor.
+    - **Layer Support**: Handles secondary layers (hat/jacket) properly with collision priority.
+- **Configuration**: Customizable block palettes via `palette.json`.
 
 ## Installation
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/skin2schematic.git
+    git clone https://github.com/venb/skin2schematic.git
     cd skin2schematic
     ```
 
 2.  **Install dependencies**:
     ```bash
-    pip install -r requirements.txt
+    pip install numpy litemapy nbtlib Pillow
     ```
-    *Dependencies: `Pillow`, `requests`, `litemapy`*
 
 ## Usage
 
-Basic usage via Command Line Interface (CLI):
-
+### 1. Interactive Wizard (Recommended)
+Simply run the script without arguments. It will double-check your current folder for `.png` files and ask you what to do (Scan Skins -> Select Pose).
 ```bash
-python src/main.py <input> [options]
+python src/main.py
 ```
 
-### Examples
+### 2. Command Line Interface (CLI)
 
-**1. From a Minecraft Username:**
+**Single File:**
 ```bash
-python src/main.py Notch
-```
-*Creates `Notch_statue.litematic`.*
-
-**2. From a Local File:**
-```bash
-python src/main.py skins/my_skin.png
+python src/main.py -i steve.png -p walking
 ```
 
-**3. Specific Palette:**
+**Batch Processing (Folder):**
 ```bash
-python src/main.py Notch --palette concrete
+python src/main.py -i ./my_skins/ -o ./output/ -p bow_aim
+```
+
+**Debug Gallery:**
+Generates a massive schematic containing ALL available poses and item variants for a specific skin.
+```bash
+python src/main.py -i steve.png --debug
 ```
 
 ### Options
+- `-i`, `--input`: Input file (`skin.png`) or directory (`./skins`).
+- `-o`, `--output`: Output file or directory (Default `output/`).
+- `-p`, `--pose`: Pose name (default: `standing`).
+- `--list-poses`: List all available poses.
+- `--debug`: Generate debug gallery (Alias for `--pose debug_all`).
+- `--palette`: Block palette (`all`, `wool`, `concrete`, `terracotta`).
+- `--solid`: Disable hollow optimization (fill inside with blocks).
 
-- `input`: Skin source (File path, URL, or Username).
-- `-o`, `--output`: Output filename (optional).
-- `-p`, `--palette`: Block palette to use. Options: `mixed` (default), `concrete`, `wool`, `terracotta`.
-- `-m`, `--model`: Force specific model. Options: `auto` (default), `classic`, `slim`.
+## Available Poses
+Use `--list-poses` to see the full list.
+- **Standard**: `standing`, `walking`, `zombie`, `t_pose`
+- **Sitting**: `floor_sit`, `chair_sit`, `chair_sit_zombie`
+- **Action**: `sword_charge` (Variants: `_diamond`, `_gold`, etc.), `bow_aim`, `hero_landing`
+- **Social**: `waving`, `pointing`, `facepalm`, `shrug`
+- **Movement**: `running`, `sneaking` (Crouches 1.5 blocks), `flying` (Superman)
 
-## Implementation Details
-
-- **SkinLoader**: Handles fetching from Mojang API or loading local files.
-- **Geometry**: Maps the 2D skin texture to 3D block coordinates, handling the offsets for overlays.
-- **ColorMatcher**: Uses Euclidean distance to find the closest matching Minecraft block from the selected palette.
-- **SchematicBuilder**: Uses `litemapy` to generate mod-compatible `.litematic` files.
-
-## License
-
-MIT
+## Configuration
+Block palettes can be customized in `src/palette.json`. You can modify which blocks are used for color matching without editing Python code.

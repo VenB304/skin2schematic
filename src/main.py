@@ -183,7 +183,12 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
                  sign_x = int(offset_x)
                  sign_y = 0
                  
-                 builder.add_sign(sign_x, sign_y, sign_z, text=p_name, facing="north")
+                 # Truncate text for sign (Max 15 chars recommended)
+                 disp_text = p_name
+                 if p_name.startswith("sword_charge_"):
+                     disp_text = p_name.replace("sword_charge_", "Sword ")
+                 
+                 builder.add_sign(sign_x, sign_y, sign_z, text=disp_text, facing="north")
                  # print(f"    [X={sign_x}] Pose: {p_name}")
 
             for pb in blocks:

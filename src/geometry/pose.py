@@ -138,20 +138,24 @@ class PoseApplicator:
         },
         "sneaking": {
             # Fix: Lower body height + correct angle
+            # User says "leaning back". So +25 was Back.
+            # Changing to -25 (Forward).
             "BodyJoint": {
-                "rot": {"x": 25}, 
-                "pos": {"y": -2} # Shift body down 2 pixels (approx 1.5 block height total)
+                "rot": {"x": -25}, 
+                "pos": {"y": -2} 
             },
-            "HeadJoint": {"rot": {"x": -25}},  # Look Up to compensate
-            "RightLegJoint": {"rot": {"x": -25}}, 
-            "LeftLegJoint": {"rot": {"x": -25}},
-            "RightArmJoint": {"rot": {"x": 0}}, 
-            "LeftArmJoint": {"rot": {"x": 0}}
+            "HeadJoint": {"rot": {"x": 25}},  # Look Up to compensate
+            "RightLegJoint": {"rot": {"x": 25}}, 
+            "LeftLegJoint": {"rot": {"x": 25}},
+            "RightArmJoint": {"rot": {"x": 25}}, # Arm vertical-ish
+            "LeftArmJoint": {"rot": {"x": 25}}
         },
         "flying": {
-            "BodyJoint": {"rot": {"x": 90}}, # Fix: positive 90 for prone? 
-            # If -90 was "Backwards", then 90 is correct.
-            "HeadJoint": {"rot": {"x": -90}}, 
+            # User: "Rotated 180 degrees except head".
+            # Previous: Body 90. +X is Back. So 90 is Face Up.
+            # Fix: Body -90 (Face Down).
+            "BodyJoint": {"rot": {"x": -90}}, 
+            "HeadJoint": {"rot": {"x": 90}}, # Look "Up" (Forward relative to world)
             "RightArmJoint": {"rot": {"x": 180}}, 
             "LeftArmJoint": {"rot": {"x": 180}},
             "RightLegJoint": {"rot": {"x": 0}}, 
@@ -160,34 +164,41 @@ class PoseApplicator:
 
         # --- Social / Emotes ---
         "waving": {
-            # Fix: Adjust angle to prevent head clipping
-            # Previous: X=-170, Z=20.
-            # New: X=170 (Up?), Z=15 (Less roll).
-            # If X was backwards, invert X.
-            "RightArmJoint": {"rot": {"x": 180, "z": 15}}
+            # User: Clipping. Rotated wrong way.
+            # Previous: X=170, Z=15.
+            # Let's try Z-based "High Side" wave.
+            # Z=135 (Diagonal Up/Right).
+            "RightArmJoint": {"rot": {"z": 135},
+            "pos": {"x": 6, "y": 10, "z": -2}}
         },
         "pointing": {
-            # Fix: Backwards -> Invert X
-            "RightArmJoint": {"rot": {"x": 90, "y": 10}}
+            "RightArmJoint": {"rot": {"x": 90},
+            "pos": {"x": 4, "y": 10, "z": -2}}
         },
         "facepalm": {
-            # Fix: Backwards -> Invert X
-            "RightArmJoint": {"rot": {"x": 130, "y": -40}}
+            # User: "Heil Hitler" (Straight arm). Needs bend.
+            # Fix: Angle shoulder UP and IN.
+            # X=-90 (Forward). Z=110 (In/Up?).
+            # Check Z: +Z is Out (Right). -Z is In (Left).
+            # We want Right Arm to go Left (In). So -Z?
+            # Or Pitch Up (-X) and Yaw Left (-Y).
+            # Try: Pitch -50 (Up/Forward). Yaw -45 (Left). Roll?
+            # Wait, Face is high.
+            # Try: X=-150 (High Up), Z=-30 (In).
+            "RightArmJoint": {"rot": {"x": 150, "z": 30},
+            "pos": {"x": 4, "y": 10, "z": -2}}
         },
         "shrug": {
-            # Fix: Backwards -> Invert X
             "RightArmJoint": {"rot": {"z": 30, "x": 10}},
             "LeftArmJoint": {"rot": {"z": -30, "x": 10}} 
         },
 
         # --- Action / Combat ---
         "bow_aim": {
-            # Fix: Backwards -> Invert X
-            "RightArmJoint": {"rot": {"x": 90, "y": 45}},
-            "LeftArmJoint": {"rot": {"x": 90}}
+            "RightArmJoint": {"rot": {"x": -90, "y": 45}},
+            "LeftArmJoint": {"rot": {"x": -90}}
         },
         "sword_charge": {
-            # Fix: Backwards -> Invert X
             "RightArmJoint": {"rot": {"x": 180}}
         },
         "hero_landing": {

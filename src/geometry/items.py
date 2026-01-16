@@ -37,15 +37,19 @@ class ItemFactory:
             bp = BoxPart(name, size=(w, h, d), color=col, parent=parent)
             bp.origin = min_p # Set origin to min point relative to parent
             return bp
+            
+        # Offset to Hand Center (Arm Length 12, Shoulder Top 0. Hand -10 to -12)
+        # Shift all Y by -11
+        DY = -11
         
         # Handle (Stick): 1x5x1
-        parts.append(make_part(f"{material}_sword_handle", (1.5, -2, 1.5), (2.5, 3, 2.5), handle_color))
+        parts.append(make_part(f"{material}_sword_handle", (1.5, -2+DY, 1.5), (2.5, 3+DY, 2.5), handle_color))
         
         # Guard: 3x1x1
-        parts.append(make_part(f"{material}_sword_guard", (0.5, 3, 1.5), (3.5, 4, 2.5), guard_color))
+        parts.append(make_part(f"{material}_sword_guard", (0.5, 3+DY, 1.5), (3.5, 4+DY, 2.5), guard_color))
         
         # Blade: 1x8x1
-        parts.append(make_part(f"{material}_sword_blade", (1.5, 4, 1.5), (2.5, 12, 2.5), blade_color))
+        parts.append(make_part(f"{material}_sword_blade", (1.5, 4+DY, 1.5), (2.5, 12+DY, 2.5), blade_color))
         
         return parts
 
@@ -65,18 +69,20 @@ class ItemFactory:
             bp = BoxPart(name, size=(w, h, d), color=col, parent=parent)
             bp.origin = min_p 
             return bp
+            
+        DY = -11
         
         # Grip
-        parts.append(make_part("bow_grip", (1.5, 1, 1.5), (2.5, 3, 2.5), wood_color))
+        parts.append(make_part("bow_grip", (1.5, 1+DY, 1.5), (2.5, 3+DY, 2.5), wood_color))
         
         # Limbs
-        parts.append(make_part("bow_upper_1", (1.5, 3, 1.5), (2.5, 5, 2.0), wood_color))
-        parts.append(make_part("bow_upper_2", (1.5, 5, 1.0), (2.5, 7, 1.5), wood_color))
+        parts.append(make_part("bow_upper_1", (1.5, 3+DY, 1.5), (2.5, 5+DY, 2.0), wood_color))
+        parts.append(make_part("bow_upper_2", (1.5, 5+DY, 1.0), (2.5, 7+DY, 1.5), wood_color))
         
-        parts.append(make_part("bow_lower_1", (1.5, -1, 1.5), (2.5, 1, 2.0), wood_color))
-        parts.append(make_part("bow_lower_2", (1.5, -3, 1.0), (2.5, -1, 1.5), wood_color))
+        parts.append(make_part("bow_lower_1", (1.5, -1+DY, 1.5), (2.5, 1+DY, 2.0), wood_color))
+        parts.append(make_part("bow_lower_2", (1.5, -3+DY, 1.0), (2.5, -1+DY, 1.5), wood_color))
         
         # String
-        parts.append(make_part("bow_string", (1.8, -3, 1), (2.2, 7, 1.2), string_color))
+        parts.append(make_part("bow_string", (1.8, -3+DY, 1), (2.2, 7+DY, 1.2), string_color))
         
         return parts
