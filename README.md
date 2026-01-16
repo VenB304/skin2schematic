@@ -14,6 +14,7 @@ This tool takes any Minecraft skin (Modern or Legacy) and generates a precise 3D
 *   **Batch Processing**: Capable of processing folders containing thousands of skins in parallel using multi-core processing.
 *   **Performance Cache**: Uses intelligent color caching to speed up block matching significantly over time.
 *   **Anti-Crack Technology**: Uses 7-point oversampling to prevent "cracks" or holes in the mesh when limbs are rotated at complex angles.
+*   **Upscaled Macro Mode**: A new 3:1 scale mode (`--macro`) that physically separates the skin's outer layer with air gaps, completely eliminating collision visual artifacts for a pristine "Museum Quality" T-Pose statue.
 
 ---
 
@@ -55,6 +56,7 @@ For advanced users and batch operations, use the command line arguments:
 | `--no-layers` | Disable secondary skin layers (hat, jacket, sleeves) | `--no-layers` |
 | `--simple` | Use simple 1:1 voxel conversion (ignores rotations, perfect spacing) | `--simple` |
 | `--dither` | Enable Bayer dithering for better colors (improves limited palettes) | `--dither` |
+| `--macro` | Enable Upscaled 3:1 Macro-Voxel Mode (Bypasses pose system) | `--macro` |
 | `--debug` | Generates a "Gallery" of all poses for the skin | `--debug` |
 
 **Example: Batch process a folder of skins into "Walking" statues:**

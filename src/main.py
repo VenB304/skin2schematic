@@ -21,19 +21,22 @@ from geometry.rasterizer import Rasterizer
 from geometry.simple_voxelizer import SimpleVoxelizer
 from dithering import Ditherer
 from geometry.items import ItemFactory 
+from geometry.macro_voxelizer import MacroVoxelizer
+
+SCALE_FACTOR = 3
 
 def process_skin_wrapper(args):
     """
     Wrapper for multiprocessing.
-    args: (input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, cache_copy)
+    args: (input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, macro_mode, cache_copy)
     Returns: (bool, cache_updates)
     """
-    input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, cache_copy = args
+    input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, macro_mode, cache_copy = args
     # Re-init matcher to avoid pickling large objects or sharing state issues
     matcher = ColorMatcher(mode=palette)
-    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, matcher, cache_copy)
+    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, macro_mode, matcher, cache_copy)
 
-def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, simple_mode: bool, dither: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
+def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, simple_mode: bool, dither: bool, macro_mode: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
     """
     Process a single skin file. 
     Returns: (Success, Cache_Updates_Dict)
@@ -130,77 +133,130 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
         # Doing it per-pose inside rasterization is more accurate for UVs but slower?
         # Rasterizer now returns colors. We handle matching below.
         
-        GAP_SIZE = 5
-        last_max_x = None
-        total_added = 0
+        if macro_mode: # Force Macro Mode per architectural pivot
+            # FORCE T-POSE / MACRO MODE
+            # We ignore the pose arguments and specific item rendering for now
+            # as requested: "DISABLE THE POSE SYSTEM... Focus solely on generating a perfect, static... T-pose"
+            
+            print(f"Generating Macro-Voxel T-Pose (Scale {SCALE_FACTOR})...")
+            wx, wy, wz, colors = MacroVoxelizer.generate(skin_img, scale=SCALE_FACTOR)
+            
+            # Helper to allow downstream code to function
+            # We treat this as a single 'pass'
+            poses_to_render = [("macro_t_pose", None, None, None)]
+            
+            # We need to skip the loop that calls Rasterizer and just use these coords.
+            # However, the loop below iterates 'poses_to_render'. 
+            # We will Refactor the loop to support pre-calculated data or just inline it.
+            
+            # Let's adjust the variables that the Dithering/Matching block expects.
+            # It expects 'wx', 'wy', 'wz', 'colors' to be defined in the scope.
+            # We can break the loop structure or wrap this.
+            
+            # Since the user wants to "Refactor the base generation loop", 
+            # I will perform the matching/building here and essentially Delete/Comment the old loop.
+            
+            offset_x = 0
+            shift_y = 0 # No grounding needed for T-pose usually, or we can calculate min_y
+            
+            if wx.size > 0:
+                 min_y = np.min(wy)
+                 # Shift so feet are at 0?
+                 # T-pose usually has feet at 0 or 12 pixels * scale.
+                 # Our MacroVoxelizer puts feet roughly at 0.
+                 shift_y = -min_y if min_y < 0 else 0
+            
+            # Continue to Color Matching...
+            # We need to jump to line 205 (Match Colors).
+            # But the 'poses_to_render' loop structure in existing code wraps the Rasterizer call AND the Builder call.
+            # So I should output valid wx/wy/wz/colors and then fall through?
+            # No, the loop (line 144) iterates poses.
+            # I should clear 'poses_to_render' and make a dummy loop that doesn't re-calculate.
+            
+            # Hack:
+            dummy_loop = [("macro_t_pose", None, None, None)]
+            
+            # Restore loop variables
+            GAP_SIZE = 5
+            total_added = 0
+            last_max_x = None
+
+            
+        # Re-structure:
+        # We will iterate our dummy loop, but INSIDE the loop we skip the Rig/Rasterizer 
+        # if we already have data.
         
-        def find_node(n, target):
-            if n.name == target: return n
-            for c in n.children:
-                res = find_node(c, target)
-                if res: return res
-            return None
-        
+        else:
+             # Standard Rig/Pose Logic
+             poses_to_render = poses_to_render # Use original list
+             
         for p_name, p_data, p_item, p_mat in poses_to_render:
-            rig = RigFactory.create_rig(model_type=detected_model)
-            PoseApplicator.apply_pose(rig, p_data)
+            # Skip Rig/Rasterizer, we already have wx, wy, wz, colors from MacroVoxelizer if it was macro mode
             
-            # Attach Items
-            parts = rig.get_parts()
-            if p_item == "sword":
-                hand_node = find_node(rig.root, "RightArmJoint")
-                if hand_node:
-                    sword_parts = ItemFactory.create_sword(p_mat, hand_node)
-                    parts.extend(sword_parts)
-                    
-            elif p_item == "bow":
-                hand_node = find_node(rig.root, "RightArmJoint")
-                if hand_node:
-                    bow_parts = ItemFactory.create_bow(hand_node)
-                    parts.extend(bow_parts)
-            
-            # Optimized Rasterizer call
-            # Returns raw numpy arrays
-            if simple_mode:
-                pixel_blocks = SimpleVoxelizer.generate(parts, skin_img, ignore_overlays=ignore_layers)
-                if not pixel_blocks:
+            if not macro_mode:
+                # Need to run legacy rasterizer
+                rig = RigFactory.create_rig(model_type=detected_model)
+                PoseApplicator.apply_pose(rig, p_data)
+                
+                # Attach Items
+                parts = rig.get_parts()
+                if p_item == "sword":
+                    hand_node = find_node(rig.root, "RightArmJoint")
+                    if hand_node:
+                        sword_parts = ItemFactory.create_sword(p_mat, hand_node)
+                        parts.extend(sword_parts)
+                        
+                elif p_item == "bow":
+                    hand_node = find_node(rig.root, "RightArmJoint")
+                    if hand_node:
+                        bow_parts = ItemFactory.create_bow(hand_node)
+                        parts.extend(bow_parts)
+                
+                # Optimized Rasterizer call
+                # Returns raw numpy arrays
+                if simple_mode:
+                    pixel_blocks = SimpleVoxelizer.generate(parts, skin_img, ignore_overlays=ignore_layers)
+                    if not pixel_blocks:
+                        continue
+                    wx = np.array([b.x for b in pixel_blocks], dtype=np.int32)
+                    wy = np.array([b.y for b in pixel_blocks], dtype=np.int32)
+                    wz = np.array([b.z for b in pixel_blocks], dtype=np.int32)
+                    colors = np.array([(b.r, b.g, b.b, b.a) for b in pixel_blocks], dtype=np.uint8)
+                else:
+                    wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True, ignore_overlays=ignore_layers)
+                
+                if wx.size == 0:
                     continue
-                wx = np.array([b.x for b in pixel_blocks], dtype=np.int32)
-                wy = np.array([b.y for b in pixel_blocks], dtype=np.int32)
-                wz = np.array([b.z for b in pixel_blocks], dtype=np.int32)
-                colors = np.array([(b.r, b.g, b.b, b.a) for b in pixel_blocks], dtype=np.uint8)
-            else:
-                wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True, ignore_overlays=ignore_layers)
-            
-            if wx.size == 0:
-                continue
+                    
+                # Auto Grounding
+                min_y = np.min(wy)
+                shift_y = -min_y
                 
-            # Auto Grounding
-            min_y = np.min(wy)
-            shift_y = -min_y
-            
-            local_min_x = np.min(wx)
-            local_max_x = np.max(wx)
-            
-            if last_max_x is None:
-                offset_x = 0
-            else:
-                offset_x = last_max_x + GAP_SIZE - local_min_x
+                local_min_x = np.min(wx)
+                local_max_x = np.max(wx)
                 
-            last_max_x = local_max_x + offset_x
-            
-            # Debug Labels
-            if pose_name == "debug_all":
-                 front_z_local = np.min(wz)
-                 sign_z = int(front_z_local - 1)
-                 sign_x = int(offset_x)
-                 sign_y = 0
-                 
-                 disp_text = p_name
-                 if p_name.startswith("sword_charge_"):
-                     disp_text = p_name.replace("sword_charge_", "Sword ")
-                 
-                 builder.add_sign(sign_x, sign_y, sign_z, text=disp_text, facing="north")
+                if last_max_x is None:
+                    offset_x = 0
+                else:
+                    offset_x = last_max_x + GAP_SIZE - local_min_x
+                    
+                last_max_x = local_max_x + offset_x
+                
+                # Debug Labels
+                if pose_name == "debug_all":
+                     front_z_local = np.min(wz)
+                     sign_z = int(front_z_local - 1)
+                     sign_x = int(offset_x)
+                     sign_y = 0
+                     
+                     disp_text = p_name
+                     if p_name.startswith("sword_charge_"):
+                         disp_text = p_name.replace("sword_charge_", "Sword ")
+                     
+                     builder.add_sign(sign_x, sign_y, sign_z, text=disp_text, facing="north")
+
+            # Match Colors (Optimized or Dithered)
+
 
             # Match Colors (Optimized or Dithered)
             u_ids = None
@@ -364,7 +420,7 @@ def interactive_mode():
         
         mode_cache = cache.get("all", {})
         
-        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", False, False, matcher, mode_cache)
+        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", False, False, matcher, False, mode_cache)
         if updates:
             # Update local mode cache
             mode_cache.update(updates)
@@ -388,6 +444,7 @@ def main():
     parser.add_argument("--simple", action="store_true", help="Use simple 1:1 conversion (ignores pose rotations)")
     parser.add_argument("--dither", action="store_true", help="Enable Bayer dithering for better color approximation")
     parser.add_argument("-m", "--model", default="auto", choices=["auto", "classic", "slim"], help="Model type")
+    parser.add_argument("--macro", action="store_true", help="Enable Upscaled 3:1 Macro-Voxel Mode (Bypasses pose system)")
     
     if len(sys.argv) == 1:
         interactive_mode()
@@ -441,7 +498,7 @@ def main():
         # Prepare Tasks
         # We pass only the relevant sub-cache to workers to keep pickling small
         tasks = [
-            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, current_cache)
+            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, args.macro, current_cache)
             for f in files_to_process
         ]
         
@@ -464,7 +521,7 @@ def main():
     else:
         # Single file
         print(f"Processing {files_to_process[0]}...")
-        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, matcher, current_cache)
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, args.macro, matcher, current_cache)
         success_count = 1 if success else 0
         if updates: current_cache.update(updates)
             
