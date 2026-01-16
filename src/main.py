@@ -33,33 +33,73 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             detected_model = SkinLoader.detect_model(skin_img)
             # print(f"  Detected model: {detected_model}")
         
+        # Determine Pose and Item
+        pose_key = pose_name
+        item_type = None
+        item_material = None
+        
+        # Check for item variants in pose name
+        # e.g. "sword_charge_diamond" -> pose="sword_charge", item="sword", mat="diamond"
+        # e.g. "bow_aim" -> pose="bow_aim", item="bow"
+        
+        if pose_name.startswith("sword_charge"):
+            pose_key = "sword_charge"
+            parts = pose_name.split('_')
+            # sword_charge or sword_charge_diamond
+            if len(parts) > 2:
+                item_material = parts[2] # diamond
+            else:
+                item_material = "iron" # default
+            item_type = "sword"
+            
+        elif pose_name == "bow_aim":
+            pose_key = "bow_aim"
+            item_type = "bow"
+            
         # Get Pose Data
         pose_data = {}
-        if pose_name == "debug_all":
-            # Handle Debug All separately? 
-            # Actually debug_all generates multiple poses in one schematic.
-            # But here we are processing one *skin*.
-            # If input is a batch of skins, debug_all means each skin gets a gallery?
-            # Yes.
-            pass
-        elif pose_name in PoseApplicator.POSES:
-            pose_data = PoseApplicator.get_pose(pose_name)
+        if pose_key == "debug_all":
+            pass # Handled below
+        elif pose_key in PoseApplicator.POSES:
+            pose_data = PoseApplicator.get_pose(pose_key)
         else:
-            # Check file
-            if pose_name.endswith(".json") and os.path.exists(pose_name):
-                with open(pose_name, 'r') as f:
+            # Fallback for file or default
+            if pose_key.endswith(".json") and os.path.exists(pose_key):
+                with open(pose_key, 'r') as f:
                     pose_data = json.load(f)
             else:
-               # print(f"  Warning: Unknown pose '{pose_name}'. Using default.")
                 pose_data = PoseApplicator.get_standing_pose()
 
         # Prepare List of Poses to Render
         poses_to_render = []
-        if pose_name == "debug_all":
+        if pose_key == "debug_all":
+            # Expand all poses
+            # For sword_charge, we add variants? Or just default?
+            # Let's add default variants for debug_all
             for name in sorted(PoseApplicator.POSES.keys()):
-                poses_to_render.append((name, PoseApplicator.get_pose(name)))
+                # If name assumes item, add it tuple style?
+                # Structure: (name, data, item_info)
+                p_item = None
+                p_mat = None
+                
+                if name == "sword_charge":
+                    p_item = "sword"
+                    p_mat = "iron"
+                elif name == "bow_aim":
+                    p_item = "bow"
+                
+                poses_to_render.append((name, PoseApplicator.get_pose(name), p_item, p_mat))
+                
+            # Add explicit variants for sword?
+            # User wants "sword variants" included
+            # So let's add sword_charge_diamond etc. to the list if debug_all
+            if pose_key == "debug_all":
+                for mat in ["wood", "stone", "gold", "diamond", "netherite"]:
+                    name = f"sword_charge_{mat}"
+                    poses_to_render.append((name, PoseApplicator.get_pose("sword_charge"), "sword", mat))
+                    
         else:
-             poses_to_render.append((pose_name, pose_data))
+             poses_to_render.append((pose_name, pose_data, item_type, item_material))
 
         # Setup Builder
         base_name = os.path.basename(input_path).rsplit('.', 1)[0]
@@ -69,9 +109,7 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
         
         builder = SchematicBuilder(name=schem_name)
         
-        # Determine output path if not explicit
-        # If output_path is a directory, append filename
-        # If output_path is None, use default logic
+        # Determine output path logic... (omitted for brevity, unchanged)
         final_output = output_path
         if not final_output:
             output_dir = f"{base_name} output"
@@ -79,28 +117,54 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             suffix = f"_{pose_name}" if pose_name != "debug_all" else "_debug_all"
             final_output = os.path.join(output_dir, f"{base_name}{suffix}.litematic")
         elif os.path.isdir(final_output) or final_output.endswith(os.sep):
-             # Is directory
              os.makedirs(final_output, exist_ok=True)
              suffix = f"_{pose_name}" if pose_name != "debug_all" else "_debug_all"
              final_output = os.path.join(final_output, f"{base_name}{suffix}.litematic")
         
-        # Pre-compute unique colors for this skin
-        # Verify cache? Caller provided a cache, but that is global?
-        # No, color_cache provided by caller might be existing for optimization?
-        # Actually each skin has different colors.
-        # But matcher.map_unique_colors returns a mapping for THIS image.
-        
+        # Pre-compute unique colors
         skin_color_cache = matcher.map_unique_colors(skin_img)
         
         GAP_SIZE = 5
         last_max_x = None
         total_added = 0
         
-        for p_name, p_data in poses_to_render:
+        from geometry.items import ItemFactory # Import here to avoid circular
+        
+        for p_name, p_data, p_item, p_mat in poses_to_render:
             rig = RigFactory.create_rig(model_type=detected_model)
             PoseApplicator.apply_pose(rig, p_data)
             
-            blocks = Rasterizer.rasterize(rig.get_parts(), skin_img, solid=solid)
+            # Attach Items
+            parts = rig.get_parts()
+            if p_item == "sword":
+                # Find RightArmJoint? The Rig parts list doesn't expose Nodes directly easily 
+                # unless we traverse.
+                # But get_parts returns BoxParts. BoxParts have .parent (Node).
+                # We can grab any part (e.g. right_arm) and get its parent?
+                # Or just use the Rig root and Search.
+                # Ideally Rig has get_node("RightArmJoint").
+                # Rig.root is available.
+                def find_node(n, target):
+                    if n.name == target: return n
+                    for c in n.children:
+                        res = find_node(c, target)
+                        if res: return res
+                    return None
+                    
+                hand_node = find_node(rig.root, "RightArmJoint")
+                if hand_node:
+                    sword_parts = ItemFactory.create_sword(p_mat, hand_node)
+                    parts.extend(sword_parts)
+                    
+            elif p_item == "bow":
+                # Left Hand for Bow usually? Or Right? 
+                # bow_aim pose rotates RightArm. So Bow in Right Hand.
+                hand_node = find_node(rig.root, "RightArmJoint")
+                if hand_node:
+                    bow_parts = ItemFactory.create_bow(hand_node)
+                    parts.extend(bow_parts)
+            
+            blocks = Rasterizer.rasterize(parts, skin_img, solid=solid)
             
             if not blocks:
                 continue
@@ -177,16 +241,16 @@ def interactive_mode():
 
     # 2. Select Pose
     print("\nAvailable Poses:")
-    print("0. default (Standing)")
+    print("0. standing (Default)")
     print("1. walking")
     print("2. running")
-    print("3. sitting")
+    print("3. floor_sit (sitting)")
     print("4. t_pose")
     print("5. debug_all (Gallery)")
     
     p_choice = input("Select pose (0-5) or type name: ").strip()
-    pose_map = ["default", "walking", "running", "sitting", "t_pose", "debug_all"]
-    pose_name = "default"
+    pose_map = ["standing", "walking", "running", "floor_sit", "t_pose", "debug_all"]
+    pose_name = "standing"
     
     if p_choice.isdigit() and 0 <= int(p_choice) < len(pose_map):
         pose_name = pose_map[int(p_choice)]
@@ -208,7 +272,7 @@ def main():
     parser = argparse.ArgumentParser(description="Convert Minecraft skins to Litematic statues.")
     parser.add_argument("-i", "--input", help="Path to skin file or directory")
     parser.add_argument("-o", "--output", help="Output directory or file")
-    parser.add_argument("-p", "--pose", default="default", help="Pose name or path to json")
+    parser.add_argument("-p", "--pose", default="standing", help="Pose name or path to json")
     parser.add_argument("-l", "--list-poses", action="store_true", help="List all available poses")
     parser.add_argument("--debug", action="store_true", help="Generate debug gallery (alias for --pose debug_all)")
     parser.add_argument("--solid", action="store_true", help="Disable hollow optimization")
