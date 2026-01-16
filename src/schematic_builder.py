@@ -99,7 +99,7 @@ class SchematicBuilder:
                 
                 try:
                     # Construct BlockState with ID and Props
-                    reg.setblock(lx, ly, lz, BlockState(block_id, props))
+                    reg.setblock(lx, ly, lz, BlockState(block_id, **props))
                     
                     msg_json = f'{{"text":"{s["text"]}"}}'
                     
