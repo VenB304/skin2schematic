@@ -40,54 +40,70 @@ def main():
         print(f"Using model: {model}")
 
     # --- New Geometry Pipeline ---
-    print("Initializing Rig...")
-    rig = RigFactory.create_rig(model_type=model)
     
-    # Apply Pose
-    print(f"Applying pose: {args.pose}")
-    pose_data = {}
-    if args.pose == "standing":
-        pose_data = PoseApplicator.get_standing_pose()
-    elif args.pose == "tpose":
-        pose_data = PoseApplicator.get_t_pose()
+    poses_to_generate = []
+    
+    if args.pose == "debug_all":
+        print("Debug Mode: Generating all poses...")
+        # Sort keys for consistent order
+        for name in sorted(PoseApplicator.POSES.keys()):
+            poses_to_generate.append((name, PoseApplicator.get_pose(name)))
+    elif args.pose in PoseApplicator.POSES:
+        poses_to_generate.append((args.pose, PoseApplicator.get_pose(args.pose)))
     elif args.pose.endswith(".json"):
         if os.path.exists(args.pose):
             with open(args.pose, 'r') as f:
                 pose_data = json.load(f)
+            poses_to_generate.append((args.pose, pose_data))
         else:
-            print(f"Warning: Pose file {args.pose} not found. Using standing.")
-    
-    PoseApplicator.apply_pose(rig, pose_data)
-    
-    print("Rasterizing geometry (Inverse Mapping)...")
-    pixel_blocks = Rasterizer.rasterize(rig.get_parts(), skin_img)
-    print(f"Generated {len(pixel_blocks)} solid blocks.")
+            print(f"Warning: Pose file {args.pose} not found. Using default.")
+            poses_to_generate.append(("default", PoseApplicator.get_standing_pose()))
+    else:
+        print(f"Warning: Unknown pose '{args.pose}'. Using default.")
+        poses_to_generate.append(("default", PoseApplicator.get_standing_pose()))
 
-    # --- Color Matching ---
-    print(f"Matching colors (Palette: {args.palette})...")
-    matcher = ColorMatcher(mode=args.palette)
+    # Initialize Components
     
-    # Using 'rig.root.name' or input name for schematic
+    # We want a single builder if debug_all?
+    # Yes, "generate all available poses in a single .litematic".
+    
     schem_name = f"Statue_{os.path.basename(args.input).split('.')[0]}" if "http" not in args.input else "Statue_Skin"
+    if args.pose == "debug_all":
+        schem_name += "_Gallery"
+        
     builder = SchematicBuilder(name=schem_name)
-    
-    added_count = 0
-    # Basic caching for performance
+    matcher = ColorMatcher(mode=args.palette)
     color_cache = {}
     
-    for pb in pixel_blocks:
-        c_key = (pb.r, pb.g, pb.b, pb.a)
-        if c_key in color_cache:
-            block_id = color_cache[c_key]
-        else:
-            block_id = matcher.find_nearest(pb.r, pb.g, pb.b, pb.a)
-            color_cache[c_key] = block_id
-            
-        if block_id:
-            builder.add_block(pb.x, pb.y, pb.z, block_id)
-            added_count += 1
-            
-    print(f"Mapped {added_count} blocks.")
+    total_added = 0
+    gallery_spacing = 24 # 16 blocks between centers (approx) + ample room
+    
+    for idx, (pose_name, pose_data) in enumerate(poses_to_generate):
+        print(f"[{idx+1}/{len(poses_to_generate)}] Processing Pose: {pose_name}")
+        
+        # New rig for each pose to ensure clean state
+        rig = RigFactory.create_rig(model_type=model)
+        PoseApplicator.apply_pose(rig, pose_data)
+        
+        blocks = Rasterizer.rasterize(rig.get_parts(), skin_img)
+        
+        # Offset for gallery
+        x_offset = idx * gallery_spacing
+        
+        for pb in blocks:
+            c_key = (pb.r, pb.g, pb.b, pb.a)
+            if c_key in color_cache:
+                block_id = color_cache[c_key]
+            else:
+                block_id = matcher.find_nearest(pb.r, pb.g, pb.b, pb.a)
+                color_cache[c_key] = block_id
+                
+            if block_id:
+                # Add X offset
+                builder.add_block(pb.x + x_offset, pb.y, pb.z, block_id)
+                total_added += 1
+                
+    print(f"Total blocks mapped: {total_added}")
 
     output_path = args.output
     if not output_path:

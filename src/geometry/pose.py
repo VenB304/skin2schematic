@@ -63,18 +63,22 @@ class PoseApplicator:
             else:
                 print(f"Warning: Pose references unknown part '{part_name}'")
 
-    @staticmethod
-    def get_standing_pose() -> Dict[str, Any]:
-        return {} 
-
-    @staticmethod
-    def get_t_pose() -> Dict[str, Any]:
-        # Rig Default: Pivot Y=24 (Local 12).
-        # T-Pose needs Height 20..24.
-        # Rot 90 gives 24..28.
-        # Shift Y -4.
-        # Pivot was (4, 12, 0). New Pivot (4, 8, 0).
-        return {
+    POSES = {
+        "default": {}, # Standing
+        "walking": {
+            # Pitch (X-axis) rotations
+            "RightLegJoint": {"rot": {"x": 20}},  # Backward
+            "LeftLegJoint": {"rot": {"x": -20}},  # Forward
+            "RightArmJoint": {"rot": {"x": -20}}, # Forward (Opposite to leg)
+            "LeftArmJoint": {"rot": {"x": 20}}    # Backward
+        },
+        "zombie": {
+            # Arms raised forward 90 degrees (Pitch -90)
+            "RightArmJoint": {"rot": {"x": -90}},
+            "LeftArmJoint": {"rot": {"x": -90}}
+        },
+        "tpose": {
+            # Specific T-Pose with translation fix
             "RightArmJoint": {
                 "rot": {"z": 90},
                 "pos": {"x": 4, "y": 8, "z": 0} 
@@ -84,3 +88,16 @@ class PoseApplicator:
                 "pos": {"x": -4, "y": 8, "z": 0} 
             }
         }
+    }
+
+    @staticmethod
+    def get_pose(name: str) -> Dict[str, Any]:
+        return PoseApplicator.POSES.get(name, {})
+
+    @staticmethod
+    def get_standing_pose() -> Dict[str, Any]:
+        return PoseApplicator.POSES["default"]
+
+    @staticmethod
+    def get_t_pose() -> Dict[str, Any]:
+        return PoseApplicator.POSES["tpose"]
