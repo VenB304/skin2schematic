@@ -95,12 +95,25 @@ class SkinLoader:
         if width == 64 and height == 64:
             return img
         elif width == 64 and height == 32:
-            print("Detected 64x32 skin, converting to 64x64 (basic extension)...")
+            print("Detected 64x32 skin, converting to 64x64 (Legacy format)...")
+            # Create 64x64 canvas
             new_img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
             new_img.paste(img, (0, 0))
-            # Basic legacy upgrade logic could go here: mirroring legs/arms
-            # For now, we return the canvas.
-            # TODO: Implement full legacy conversion if needed
+            
+            # Legacy mirroring logic
+            # Mirror Right Leg (0, 16, 16, 32) -> Left Leg (16, 48, 32, 64)
+            right_leg = img.crop((0, 16, 16, 32))
+            left_leg = right_leg.transpose(Image.FLIP_LEFT_RIGHT)
+            new_img.paste(left_leg, (16, 48))
+            
+            # Mirror Right Arm (40, 16, 56, 32) -> Left Arm (32, 48, 48, 64)
+            right_arm = img.crop((40, 16, 56, 32))
+            left_arm = right_arm.transpose(Image.FLIP_LEFT_RIGHT)
+            new_img.paste(left_arm, (32, 48))
+            
+            # Note: Overlays for body/arms/legs don't exist in 64x32, 
+            # so the transparent background in the new areas effectively "disables" them.
+            
             return new_img
         else:
             raise ValueError(f"Unsupported skin dimensions: {width}x{height}. Must be 64x64.")
