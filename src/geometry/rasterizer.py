@@ -6,7 +6,7 @@ from .primitives import BoxPart, PixelBlock, Node
 
 class Rasterizer:
     @staticmethod
-    def rasterize(parts: List[BoxPart], skin: Image.Image, solid: bool = False, quality: int = 2, return_raw: bool = False):
+    def rasterize(parts: List[BoxPart], skin: Image.Image, solid: bool = False, quality: int = 2, return_raw: bool = False, ignore_overlays: bool = False):
 
         """
         Generates a list of colored blocks using Vectorized Inverse Mapping.
@@ -20,11 +20,16 @@ class Rasterizer:
         7. Apply Hollow Optimization (Erosion) if needed.
         
         quality: 1 = Center sample only (Fast). 2 = 7 samples (Center + 6 faces) to fix cracks.
+        ignore_overlays: If True, skips rendering secondary skin layers.
         """
         # Ensure skin is RGBA and numpy array
         if skin.mode != "RGBA":
             skin = skin.convert("RGBA")
         
+        # Filter overlays if requested
+        if ignore_overlays:
+            parts = [p for p in parts if not getattr(p, 'is_overlay', False)]
+
         # skin_data: (Height, Width, 4)
         skin_data = np.array(skin)
         skin_h, skin_w, _ = skin_data.shape
@@ -40,7 +45,7 @@ class Rasterizer:
         # Small parts inside big parts? (e.g. Arms inside Body?)
         # Standard: Overlays (secondary layer) > Body (primary).
         # We process in order: Base, then Overlay. Later overwrites earlier.
-        sorted_parts = sorted(parts, key=lambda p: p.is_overlay)
+        sorted_parts = sorted(parts, key=lambda p: getattr(p, 'is_overlay', False))
 
         for part in parts:
             (p_min_x, p_min_y, p_min_z), (p_max_x, p_max_y, p_max_z) = part.get_aabb_world()

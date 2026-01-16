@@ -26,12 +26,12 @@ def process_skin_wrapper(args):
     args: (input_path, output_path, model, pose_name, solid, palette, cache_copy)
     Returns: (bool, cache_updates)
     """
-    input_path, output_path, model, pose_name, solid, palette, cache_copy = args
+    input_path, output_path, model, pose_name, solid, palette, ignore_layers, cache_copy = args
     # Re-init matcher to avoid pickling large objects or sharing state issues
     matcher = ColorMatcher(mode=palette)
-    return process_skin(input_path, output_path, model, pose_name, solid, palette, matcher, cache_copy)
+    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, matcher, cache_copy)
 
-def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
+def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
     """
     Process a single skin file. 
     Returns: (Success, Cache_Updates_Dict)
@@ -159,7 +159,7 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             
             # Optimized Rasterizer call
             # Returns raw numpy arrays
-            wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True)
+            wx, wy, wz, colors = Rasterizer.rasterize(parts, skin_img, solid=solid, return_raw=True, ignore_overlays=ignore_layers)
             
             if wx.size == 0:
                 continue
@@ -310,7 +310,7 @@ def interactive_mode():
         
         mode_cache = cache.get("all", {})
         
-        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", matcher, mode_cache)
+        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", False, matcher, mode_cache)
         if updates:
             # Update local mode cache
             mode_cache.update(updates)
@@ -330,6 +330,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Generate debug gallery (alias for --pose debug_all)")
     parser.add_argument("--solid", action="store_true", help="Disable hollow optimization")
     parser.add_argument("--palette", default="all", choices=["all", "wool", "concrete", "terracotta"], help="Block palette")
+    parser.add_argument("--no-layers", action="store_true", help="Disable secondary skin layers (hat, jacket, etc.)")
     parser.add_argument("-m", "--model", default="auto", choices=["auto", "classic", "slim"], help="Model type")
     
     if len(sys.argv) == 1:
@@ -382,7 +383,7 @@ def main():
         # Prepare Tasks
         # We pass only the relevant sub-cache to workers to keep pickling small
         tasks = [
-            (f, args.output, args.model, pose, args.solid, args.palette, current_cache)
+            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, current_cache)
             for f in files_to_process
         ]
         
@@ -405,7 +406,7 @@ def main():
     else:
         # Single file
         print(f"Processing {files_to_process[0]}...")
-        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, matcher, current_cache)
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, matcher, current_cache)
         success_count = 1 if success else 0
         if updates: current_cache.update(updates)
             

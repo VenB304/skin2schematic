@@ -52,6 +52,7 @@ For advanced users and batch operations, use the command line arguments:
 | `--model` | Force model type (`classic` or `slim`) | `--model slim` |
 | `--solid` | Fill the inside of the statue (default is hollow) | `--solid` |
 | `--palette` | Choose block palette: `all` (default), `wool`, `concrete`, `terracotta` | `--palette wool` |
+| `--no-layers` | Disable secondary skin layers (hat, jacket, sleeves) | `--no-layers` |
 | `--debug` | Generates a "Gallery" of all poses for the skin | `--debug` |
 
 **Example: Batch process a folder of skins into "Walking" statues:**
