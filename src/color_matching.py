@@ -99,6 +99,44 @@ class ColorMatcher:
                 
         return best_block
 
+    def map_unique_colors(self, image):
+        """
+        Optimized: identify all unique colors in the image and map them to blocks.
+        Returns a dictionary: {(r, g, b, a): block_id}
+        """
+        # Convert to RGBA if not already
+        if image.mode != "RGBA":
+            image = image.convert("RGBA")
+            
+        # Get unique colors
+        # getcolors() returns (count, pixel)
+        # Max colors = 64*64 = 4096, usually much less.
+        colors = image.getcolors(maxcolors=4096)
+        
+        mapping = {}
+        if colors:
+            for _, color in colors:
+                # color is (r, g, b, a)
+                r, g, b, a = color
+                block_id = self.find_nearest(r, g, b, a)
+                if block_id:
+                    mapping[color] = block_id
+        else:
+            # Fallback for > 4096 colors (rare for skins but possible with noise)
+            # Just map commonly used pixels? 
+            # Or iterate pixel data.
+            # For simplicity, if getcolors fails (returns None), we can scan manually.
+            # But 4096 is limit for 64x64. So it should always work for skins.
+            pixel_data = list(image.getdata())
+            unique_colors = set(pixel_data)
+            for color in unique_colors:
+                r, g, b, a = color
+                block_id = self.find_nearest(r, g, b, a)
+                if block_id:
+                    mapping[color] = block_id
+                    
+        return mapping
+
     @staticmethod
     def rgb_to_lab(r, g, b):
         # RGB to XYZ

@@ -121,11 +121,11 @@ class PoseApplicator:
             "LeftLegJoint": {"rot": {"x": 90}},
             "RightArmJoint": {
                 "rot": {"x": 45},
-                "pos": {"x": 4, "y": 10, "z": 2}
+                "pos": {"x": 4, "y": 12, "z": 2}
             },
             "LeftArmJoint": {
                 "rot": {"x": 45},
-                "pos": {"x": -4, "y": 10, "z": 2}
+                "pos": {"x": -4, "y": 12, "z": 2}
             }
         }
     }
