@@ -137,8 +137,32 @@ class SimpleVoxelizer:
                                 wx = tx + lx
                                 wy = ty + ly
                                 wz = tz + lz
+                                key = (wx, wy, wz)
                                 
-                                block_map[(wx, wy, wz)] = rgba
+                                # Alpha Blending (Over operator)
+                                fg_a = rgba[3] / 255.0
+                                
+                                if fg_a < 0.01: # Skip invisible
+                                    continue
+                                    
+                                if key in block_map:
+                                    bg_rgba = block_map[key]
+                                    bg_a = bg_rgba[3] / 255.0
+                                    
+                                    out_a = fg_a + bg_a * (1.0 - fg_a)
+                                    if out_a <= 0:
+                                        continue
+                                        
+                                    fg_rgb = rgba[:3].astype(float)
+                                    bg_rgb = bg_rgba[:3].astype(float)
+                                    
+                                    out_rgb = (fg_rgb * fg_a + bg_rgb * bg_a * (1.0 - fg_a)) / out_a
+                                    out_rgba = np.zeros(4, dtype=np.uint8)
+                                    out_rgba[:3] = np.clip(out_rgb, 0, 255)
+                                    out_rgba[3] = int(out_a * 255)
+                                    block_map[key] = out_rgba
+                                else:
+                                    block_map[key] = rgba
                                 
         # Convert to list
         for (x, y, z), (r, g, b, a) in block_map.items():

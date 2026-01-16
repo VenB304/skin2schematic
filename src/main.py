@@ -19,20 +19,21 @@ from geometry.rig import RigFactory
 from geometry.pose import PoseApplicator
 from geometry.rasterizer import Rasterizer
 from geometry.simple_voxelizer import SimpleVoxelizer
+from dithering import Ditherer
 from geometry.items import ItemFactory 
 
 def process_skin_wrapper(args):
     """
     Wrapper for multiprocessing.
-    args: (input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, cache_copy)
+    args: (input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, cache_copy)
     Returns: (bool, cache_updates)
     """
-    input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, cache_copy = args
+    input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, cache_copy = args
     # Re-init matcher to avoid pickling large objects or sharing state issues
     matcher = ColorMatcher(mode=palette)
-    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, matcher, cache_copy)
+    return process_skin(input_path, output_path, model, pose_name, solid, palette, ignore_layers, simple_mode, dither, matcher, cache_copy)
 
-def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, simple_mode: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
+def process_skin(input_path: str, output_path: str, model: str, pose_name: str, solid: bool, palette: str, ignore_layers: bool, simple_mode: bool, dither: bool, matcher: ColorMatcher, cache: dict) -> Tuple[bool, dict]:
     """
     Process a single skin file. 
     Returns: (Success, Cache_Updates_Dict)
@@ -201,34 +202,69 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
                  
                  builder.add_sign(sign_x, sign_y, sign_z, text=disp_text, facing="north")
 
-            # Match Colors (Optimized)
-            # 1. Identify unique colors
-            # colors shape (N, 4)
-            u_colors, inverse = np.unique(colors, axis=0, return_inverse=True)
+            # Match Colors (Optimized or Dithered)
+            u_ids = None
+            inverse = None
             
-            u_ids = [None] * len(u_colors)
-            miss_indices = []
-            miss_colors = []
-            
-            # 2. Check Cache
-            for i, c in enumerate(u_colors):
-                key = tuple(c) # (r,g,b,a)
-                if key in cache:
-                    u_ids[i] = cache[key]
-                else:
-                    miss_indices.append(i)
-                    miss_colors.append(c)
-            
-            # 3. Batch Match Misses
-            if miss_colors:
-                miss_arr = np.array(miss_colors, dtype=np.uint8)
-                matched_ids = matcher.match_bulk(miss_arr)
+            if dither:
+                # Dithering requires spatial context, so we cannot optimize by unique colors first.
+                # We apply dithering to all pixels, then match all pixels.
+                coords = np.stack([wx, wy, wz], axis=1) # (N, 3)
                 
-                for idx, block_id, col in zip(miss_indices, matched_ids, miss_colors):
-                    u_ids[idx] = block_id
-                    # Update cache updates
-                    key = tuple(col)
-                    local_cache_updates[key] = block_id
+                # Split Alpha
+                rgb = colors[:, :3]
+                alpha = colors[:, 3:4]
+                
+                # Apply Dither
+                dithered_rgb = Ditherer.apply_bayer_dither(rgb, coords)
+                
+                # Recombine (N, 4)
+                dithered_rgba = np.concatenate([dithered_rgb, alpha], axis=1)
+                
+                # Match ALL directly (Skip Cache for Dithered? Cache is useless if every pixel varies)
+                # Actually, cache might still catch same dithered results? Unlikely.
+                # Just match bulk.
+                u_ids = matcher.match_bulk(dithered_rgba)
+                
+                # 'inverse' is just identity mapping because u_ids corresponds to colors 1:1
+                inverse = np.arange(len(colors))
+                
+                # We treat u_ids as the per-pixel result
+                # But the code below expects u_ids to be the *palette* of unique colors 
+                # and 'inverse' to map pixels to that palette.
+                # If we have N pixels and N unique colors (worst case), it still works.
+                # u_ids needs to be the array of Block IDs.
+                # Wait, existing code: u_ids is list of Block IDs for UNIQ colors.
+                # Then 'final_ids = [u_ids[i] for i in inverse]' logic isn't shown but implied?
+                # Let's check lines 230+.
+            else:
+                # 1. Identify unique colors
+                # colors shape (N, 4)
+                u_colors, inverse = np.unique(colors, axis=0, return_inverse=True)
+                
+                u_ids = [None] * len(u_colors)
+                miss_indices = []
+                miss_colors = []
+                
+                # 2. Check Cache
+                for i, c in enumerate(u_colors):
+                    key = tuple(c) # (r,g,b,a)
+                    if key in cache and cache[key] in matcher.palette:
+                        u_ids[i] = cache[key]
+                    else:
+                        miss_indices.append(i)
+                        miss_colors.append(c)
+                
+                # 3. Batch Match Misses
+                if miss_colors:
+                    miss_arr = np.array(miss_colors, dtype=np.uint8)
+                    matched_ids = matcher.match_bulk(miss_arr)
+                    
+                    for idx, block_id, col in zip(miss_indices, matched_ids, miss_colors):
+                        u_ids[idx] = block_id
+                        # Update cache updates
+                        key = tuple(col)
+                        local_cache_updates[key] = block_id
                     # Also update local scope cache to avoid re-matching same color in this loop
                     cache[key] = block_id
             
@@ -245,6 +281,14 @@ def process_skin(input_path: str, output_path: str, model: str, pose_name: str, 
             coords = np.stack((final_x, final_y, final_z), axis=1)
             builder.add_blocks_bulk(coords, all_ids)
             total_added += len(all_ids)
+
+            # Block Usage Stats
+            unique, counts = np.unique(all_ids, return_counts=True)
+            print(f"--- Block Usage Stats ({pose_name}) ---")
+            sorted_stats = sorted(zip(unique, counts), key=lambda x: x[1], reverse=True)
+            for bid, count in sorted_stats: # Show ALL
+                print(f"  {bid}: {count}")
+            print("---------------------------------------")
 
         builder.save(final_output)
         return True, local_cache_updates
@@ -339,9 +383,10 @@ def main():
     parser.add_argument("-l", "--list-poses", action="store_true", help="List all available poses")
     parser.add_argument("--debug", action="store_true", help="Generate debug gallery (alias for --pose debug_all)")
     parser.add_argument("--solid", action="store_true", help="Disable hollow optimization")
-    parser.add_argument("--palette", default="all", choices=["all", "wool", "concrete", "terracotta"], help="Block palette")
+    parser.add_argument("--palette", default="all", choices=["all", "wool", "concrete", "terracotta", "wood", "stone", "glass", "nature", "precious", "misc"], help="Block palette")
     parser.add_argument("--no-layers", action="store_true", help="Disable secondary skin layers (hat, jacket, etc.)")
     parser.add_argument("--simple", action="store_true", help="Use simple 1:1 conversion (ignores pose rotations)")
+    parser.add_argument("--dither", action="store_true", help="Enable Bayer dithering for better color approximation")
     parser.add_argument("-m", "--model", default="auto", choices=["auto", "classic", "slim"], help="Model type")
     
     if len(sys.argv) == 1:
@@ -396,7 +441,7 @@ def main():
         # Prepare Tasks
         # We pass only the relevant sub-cache to workers to keep pickling small
         tasks = [
-            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, current_cache)
+            (f, args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, current_cache)
             for f in files_to_process
         ]
         
@@ -419,7 +464,7 @@ def main():
     else:
         # Single file
         print(f"Processing {files_to_process[0]}...")
-        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, matcher, current_cache)
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, args.no_layers, args.simple, args.dither, matcher, current_cache)
         success_count = 1 if success else 0
         if updates: current_cache.update(updates)
             

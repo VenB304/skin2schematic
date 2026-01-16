@@ -5,15 +5,16 @@ class ColorMatcher:
     def __init__(self, mode="mixed"):
         self.PALETTES = self._load_palettes()
         self.palette = {}
-        if mode == "mixed":
-            self.palette.update(self.PALETTES.get("concrete", {}))
-            self.palette.update(self.PALETTES.get("wool", {}))
-            self.palette.update(self.PALETTES.get("terracotta", {}))
+        if mode == "mixed" or mode == "all":
+            # Load EVERYTHING available in palette.json
+            for p_name, p_data in self.PALETTES.items():
+                self.palette.update(p_data)
         elif mode in self.PALETTES:
             self.palette = self.PALETTES[mode]
         else:
-            self.palette.update(self.PALETTES.get("concrete", {}))
-            self.palette.update(self.PALETTES.get("wool", {}))
+            # Default to all if unknown mode
+            for p_name, p_data in self.PALETTES.items():
+                self.palette.update(p_data)
             
         # Precompute RGB -> Lab for palette
         self.palette_lab = {}

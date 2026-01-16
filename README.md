@@ -54,6 +54,7 @@ For advanced users and batch operations, use the command line arguments:
 | `--palette` | Choose block palette: `all` (default), `wool`, `concrete`, `terracotta` | `--palette wool` |
 | `--no-layers` | Disable secondary skin layers (hat, jacket, sleeves) | `--no-layers` |
 | `--simple` | Use simple 1:1 voxel conversion (ignores rotations, perfect spacing) | `--simple` |
+| `--dither` | Enable Bayer dithering for better colors (improves limited palettes) | `--dither` |
 | `--debug` | Generates a "Gallery" of all poses for the skin | `--debug` |
 
 **Example: Batch process a folder of skins into "Walking" statues:**
