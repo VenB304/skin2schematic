@@ -6,6 +6,44 @@ except ImportError:
     print("Error: litemapy or nbtlib not found. Please install litemapy.")
     raise
 
+# Monkeypatch litemapy to fix OverflowError with large ints (Python 3.14 / Numpy 2 compat)
+import litemapy.storage
+def patched_setitem(self, index: int, value: int) -> None:
+    index = int(index) # Ensure index is python int (fixes numpy contamination)
+    if not 0 <= index < len(self):
+        raise IndexError("Invalid index {}".format(index))
+    if not 0 <= value <= self._LitematicaBitArray__mask: # Access private via name mangling or getattr
+        # In patched method, self.__mask becomes self._LitematicaBitArray__mask
+        raise ValueError("Invalid value {}, maximum value is {}".format(value, self._LitematicaBitArray__mask))
+            
+    start_offset = index * self.nbits
+    start_arr_index = start_offset >> 6
+    end_arr_index = ((index + 1) * self.nbits - 1) >> 6
+    start_bit_offset = start_offset & 0x3F
+    m = (1 << 64) - 1
+    
+    # Force int conversion to avoid numpy overflow issues
+    current_val = int(self.array[start_arr_index])
+    mask = int(self._LitematicaBitArray__mask)
+    
+    zeroed = current_val & ~(mask << start_bit_offset)
+    updated = zeroed | (int(value) & mask) << start_bit_offset
+    self.array[start_arr_index] = int(updated & m)
+
+    if start_arr_index != end_arr_index:
+        end_offset = 64 - start_bit_offset
+        j1 = self.nbits - end_offset
+        
+        current_end = int(self.array[end_arr_index])
+        
+        # self.array[end_arr_index] = (self.array[end_arr_index] >> j1 << j1 | (value & self.__mask) >> end_offset) & m
+        # Break it down safely
+        term1 = (current_end >> j1) << j1
+        term2 = (int(value) & mask) >> end_offset
+        self.array[end_arr_index] = int((term1 | term2) & m)
+
+litemapy.storage.LitematicaBitArray.__setitem__ = patched_setitem
+
 class SchematicBuilder:
     def __init__(self, name="SkinStatue", author="Skin2Schematic"):
         self.name = name

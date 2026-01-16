@@ -2,3 +2,4 @@
 *.png
 *.litematic
 test_gen_skin.py
+color_cache.json
