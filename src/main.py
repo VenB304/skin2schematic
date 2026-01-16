@@ -78,6 +78,7 @@ def main():
     
     GAP_SIZE = 5
     last_max_x = None
+    total_added = 0
     
     # Process Poses
     for idx, (pose_name, pose_data) in enumerate(poses_to_generate):
