@@ -3,3 +3,4 @@
 *.litematic
 test_gen_skin.py
 color_cache.json
+color_cache_v2.json

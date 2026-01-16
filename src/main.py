@@ -295,14 +295,27 @@ def interactive_mode():
     
     matcher = ColorMatcher(mode="all")
     # Load Cache
-    CACHE_FILE = "color_cache.json"
+    CACHE_FILE = "color_cache_v2.json"
     cache = matcher.load_cache_from_disk(CACHE_FILE)
     
     for idx, fpath in enumerate(selected_files):
         print(f"[{idx+1}/{len(selected_files)}] processing: {fpath}...")
-        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", matcher, cache)
+        
+        # Extract sub-cache for current mode
+        # If not present, auto-create
+        current_mode = "all" # Interactive mode defaults to 'all' or implied? 
+        # Interactive doesn't ask for palette, defaults to "all" in code?
+        # Line 296: matcher = ColorMatcher(mode="all")
+        # So we use "all"
+        
+        mode_cache = cache.get("all", {})
+        
+        success, updates = process_skin(fpath, None, "auto", pose_name, False, "all", matcher, mode_cache)
         if updates:
-            cache.update(updates)
+            # Update local mode cache
+            mode_cache.update(updates)
+            # Ensure it's in main cache
+            cache["all"] = mode_cache
             
     # Save cache
     matcher.save_cache_to_disk(CACHE_FILE, cache)
@@ -352,8 +365,12 @@ def main():
     pose = "debug_all" if args.debug else args.pose
     
     # Load Cache
-    CACHE_FILE = "color_cache.json"
-    global_cache = matcher.load_cache_from_disk(CACHE_FILE)
+    CACHE_FILE = "color_cache_v2.json"
+    full_cache = matcher.load_cache_from_disk(CACHE_FILE)
+    
+    # Get relevant sub-cache
+    target_palette = args.palette
+    current_cache = full_cache.get(target_palette, {})
     
     # Multiprocessing
     cpu_count = multiprocessing.cpu_count()
@@ -363,8 +380,9 @@ def main():
         print(f"Batch processing {len(files_to_process)} skins using {workers} workers...")
         
         # Prepare Tasks
+        # We pass only the relevant sub-cache to workers to keep pickling small
         tasks = [
-            (f, args.output, args.model, pose, args.solid, args.palette, global_cache)
+            (f, args.output, args.model, pose, args.solid, args.palette, current_cache)
             for f in files_to_process
         ]
         
@@ -377,22 +395,24 @@ def main():
                 
             for success, updates in results:
                 if success: success_count += 1
-                if updates: global_cache.update(updates)
+                if updates: current_cache.update(updates)
         else:
             # Serial fallback
             for task in tasks:
                  s, u = process_skin_wrapper(task)
                  if s: success_count += 1
-                 if u: global_cache.update(u)
+                 if u: current_cache.update(u)
     else:
         # Single file
         print(f"Processing {files_to_process[0]}...")
-        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, matcher, global_cache)
+        success, updates = process_skin(files_to_process[0], args.output, args.model, pose, args.solid, args.palette, matcher, current_cache)
         success_count = 1 if success else 0
-        if updates: global_cache.update(updates)
+        if updates: current_cache.update(updates)
             
     # Save Cache
-    matcher.save_cache_to_disk(CACHE_FILE, global_cache)
+    # Merge back into full cache
+    full_cache[target_palette] = current_cache
+    matcher.save_cache_to_disk(CACHE_FILE, full_cache)
     print(f"\nBatch Complete. {success_count}/{len(files_to_process)} successful.")
 
 if __name__ == "__main__":

@@ -51,6 +51,7 @@ For advanced users and batch operations, use the command line arguments:
 | `-p`, `--pose` | Specific pose name to apply | `-p running` |
 | `--model` | Force model type (`classic` or `slim`) | `--model slim` |
 | `--solid` | Fill the inside of the statue (default is hollow) | `--solid` |
+| `--palette` | Choose block palette: `all` (default), `wool`, `concrete`, `terracotta` | `--palette wool` |
 | `--debug` | Generates a "Gallery" of all poses for the skin | `--debug` |
 
 **Example: Batch process a folder of skins into "Walking" statues:**

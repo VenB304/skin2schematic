@@ -200,21 +200,58 @@ class ColorMatcher:
     def load_cache_from_disk(self, path: str) -> dict:
         import json
         import os
+        
+        # Determine if v2 based on filename or try load
+        # We will switch to enforcing path usually passed as 'color_cache_v2.json'
+        
         if not os.path.exists(path):
             return {}
+            
         try:
             with open(path, 'r') as f:
                 raw = json.load(f)
-            # Convert keys from "r,g,b,a" string back to tuple
-            cache = {}
-            for k, v in raw.items():
-                try:
-                    parts = list(map(int, k.split(',')))
-                    cache[tuple(parts)] = v
-                except:
-                    pass
-            print(f"Loaded {len(cache)} cached colors.")
-            return cache
+                
+            # Check structure
+            # V2: {"wool": {...}, "all": {...}}
+            # V1: {"r,g,b,a": "id"}
+            
+            # Simple heuristic: Check if values are strings (ID) or dicts (Palette sub-cache)
+            first_val = next(iter(raw.values())) if raw else None
+            
+            if isinstance(first_val, dict):
+                # V2 Structure
+                # Map keys back to tuples for each sub-dict
+                final_cache = {}
+                for mode, sub_cache in raw.items():
+                    final_cache[mode] = {}
+                    for k, v in sub_cache.items():
+                        try:
+                            parts = list(map(int, k.split(',')))
+                            final_cache[mode][tuple(parts)] = v
+                        except:
+                            pass
+                print(f"Loaded V2 cache with modes: {list(final_cache.keys())}")
+                return final_cache
+            else:
+                # V1 Structure - Assume it belongs to 'all' or migration needed
+                # For compatibility, let's just return it as 'mixed' or 'all' if we were strictly v2
+                # But to avoid data loss, let's rename it or just load it into "all" and "mixed"?
+                print("Detected Legacy V1 Cache. Migrating to 'all' and 'mixed'...")
+                
+                converted = {}
+                for k, v in raw.items():
+                    try:
+                        parts = list(map(int, k.split(',')))
+                        converted[tuple(parts)] = v
+                    except:
+                        pass
+                        
+                # Return standardized V2 structure
+                return {
+                    "all": converted.copy(),
+                    "mixed": converted.copy() 
+                }
+                
         except Exception as e:
             print(f"Failed to load cache: {e}")
             return {}
@@ -222,14 +259,20 @@ class ColorMatcher:
     def save_cache_to_disk(self, path: str, cache: dict):
         import json
         try:
-            # Convert keys to string "r,g,b,a"
-            raw = {}
-            for k, v in cache.items():
-                k_str = f"{k[0]},{k[1]},{k[2]},{k[3]}"
-                raw[k_str] = v
+            # Expecting cache to be V2: { mode: { (r,g,b,a): id } }
+            
+            raw_node = {}
+            
+            for mode, sub_cache in cache.items():
+                raw_node[mode] = {}
+                for k, v in sub_cache.items():
+                    # k is tuple (r,g,b,a)
+                    k_str = f"{k[0]},{k[1]},{k[2]},{k[3]}"
+                    raw_node[mode][k_str] = v
+                    
             with open(path, 'w') as f:
-                json.dump(raw, f)
-            print(f"Saved {len(cache)} cached colors to {path}.")
+                json.dump(raw_node, f)
+            print(f"Saved cache to {path}.")
         except Exception as e:
             print(f"Failed to save cache: {e}")
 
