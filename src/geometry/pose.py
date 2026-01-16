@@ -64,7 +64,10 @@ class PoseApplicator:
                 print(f"Warning: Pose references unknown part '{part_name}'")
 
     POSES = {
-        "default": {}, # Standing
+        "default": {
+
+        }, # Standing
+
         "walking": {
             # Pitch (X-axis) rotations
             "RightLegJoint": {"rot": {"x": 20}},  # Backward
@@ -72,12 +75,8 @@ class PoseApplicator:
             "RightArmJoint": {"rot": {"x": -20}}, # Forward (Opposite to leg)
             "LeftArmJoint": {"rot": {"x": 20}}    # Backward
         },
+
         "zombie": {
-            # Arms raised forward 90 degrees (Pitch 90)
-            # Corrected from -90 (Backward) to 90 (Forward)
-            # User req: "2 blocks too high". Default pivot Y=12 local (24 global).
-            # Shift down by 2 -> Y=10 local.
-            # User req: "Shift arms 2 blocks back". -> Z=2.
             "RightArmJoint": {
                 "rot": {"x": 90},
                 "pos": {"x": 4, "y": 10, "z": 2}
@@ -87,8 +86,8 @@ class PoseApplicator:
                 "pos": {"x": -4, "y": 10, "z": 2}
             }
         },
-        "tpose": {
-            # Specific T-Pose with translation fix
+
+        "t_pose": {
             "RightArmJoint": {
                 "rot": {"z": 90},
                 "pos": {"x": 4, "y": 8, "z": 0} 
@@ -98,33 +97,35 @@ class PoseApplicator:
                 "pos": {"x": -4, "y": 8, "z": 0} 
             }
         },
-        "sitting_floor": {
-            # Minecart style. Legs 90 (Forward), Body 0, Arms 45 (Forward/Down)
-            # Arms shifted back 2 blocks (Z=2)
+
+        "sitting": {
+            "RightLegJoint": {"rot": {"x": 90}},
+            "LeftLegJoint": {"rot": {"x": 90}}
+        },
+
+        "sitting_zombie": {
             "RightLegJoint": {"rot": {"x": 90}},
             "LeftLegJoint": {"rot": {"x": 90}},
             "RightArmJoint": {
-                "rot": {"x": 45},
-                "pos": {"x": 4, "y": 24, "z": 2}
+                "rot": {"x": 90},
+                "pos": {"x": 4, "y": 10, "z": 2}
             },
             "LeftArmJoint": {
-                "rot": {"x": 45},
-                "pos": {"x": -4, "y": 24, "z": 2}
+                "rot": {"x": 90},
+                "pos": {"x": -4, "y": 10, "z": 2}
             }
         },
+
         "sitting_relaxed": {
-            # User Redefinition: "Same as sitting floor, but arms are 90"
-            # So: Body 0, Legs 90, Arms 90.
-            # Arms shifted back 2 blocks (Z=2)
             "RightLegJoint": {"rot": {"x": 90}},
             "LeftLegJoint": {"rot": {"x": 90}},
             "RightArmJoint": {
-                "rot": {"x": 90},
-                "pos": {"x": 4, "y": 24, "z": 2}
+                "rot": {"x": 45},
+                "pos": {"x": 4, "y": 10, "z": 2}
             },
             "LeftArmJoint": {
-                "rot": {"x": 90},
-                "pos": {"x": -4, "y": 24, "z": 2}
+                "rot": {"x": 45},
+                "pos": {"x": -4, "y": 10, "z": 2}
             }
         }
     }

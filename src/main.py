@@ -19,7 +19,8 @@ def main():
     parser = argparse.ArgumentParser(description="Convert Minecraft skin to Litematic statue.")
     parser.add_argument("input", help="Skin source: File path, URL, or Username")
     parser.add_argument("-o", "--output", help="Output file path (default: input_name.litematic)")
-    parser.add_argument("-p", "--palette", choices=["mixed", "concrete", "wool", "terracotta"], default="mixed", help="Block palette to use")
+    parser.add_argument("-p", "--palette", choices=["all", "wool", "concrete", "terracotta"], default="all", help="Block palette to use")
+    parser.add_argument("--solid", action="store_true", help="Disable hollow optimization (fill internal blocks)")
     parser.add_argument("-m", "--model", choices=["auto", "classic", "slim"], default="auto", help="Skin model type")
     parser.add_argument("--pose", help="Pose name (standing, tpose) or path to JSON file", default="standing")
 
@@ -75,16 +76,12 @@ def main():
     matcher = ColorMatcher(mode=args.palette)
     color_cache = {}
     
-    total_added = 0
-    
-    # Dynamic Spacing Logic
-    last_max_x = None
     GAP_SIZE = 5
     
+    # Process Poses
     for idx, (pose_name, pose_data) in enumerate(poses_to_generate):
         print(f"[{idx+1}/{len(poses_to_generate)}] Processing Pose: {pose_name}")
         
-        # New rig for each pose to ensure clean state
         rig = RigFactory.create_rig(model_type=model)
         PoseApplicator.apply_pose(rig, pose_data)
         
@@ -94,29 +91,68 @@ def main():
             continue
             
         # --- Auto-Grounding ---
-        # Find Min Y
         min_y = min(b.y for b in blocks)
         shift_y = -min_y
         
-        # Apply Shift
-        # We can update the PixelBlock objects directly or apply during adding.
-        # Let's apply during adding/bounds calc.
-        
-        # Calculate local bounds (With Shift Applied)
         local_min_x = min(b.x for b in blocks)
         local_max_x = max(b.x for b in blocks)
         
-        # Determine Offset
         if last_max_x is None:
-            # First statue.
             offset_x = 0
         else:
-            # We want current_min_x (post-shift) = last_max_x + GAP
             offset_x = last_max_x + GAP_SIZE - local_min_x
             
-        # Update bounds tracker for next iteration
         last_max_x = local_max_x + offset_x
         
+        # --- Hollow Logic ---
+        # If hollow is enabled (default), remove internal blocks.
+        # Internal = Surrounded by 6 other blocks.
+        if not args.solid:
+            # Build quick lookup
+            block_set = set((b.x, b.y, b.z) for b in blocks)
+            blocks_to_keep = []
+            
+            for b in blocks:
+                # Check 6 neighbors
+                neighbors = [
+                    (b.x+1, b.y, b.z), (b.x-1, b.y, b.z),
+                    (b.x, b.y+1, b.z), (b.x, b.y-1, b.z),
+                    (b.x, b.y, b.z+1), (b.x, b.y, b.z-1)
+                ]
+                is_internal = all(n in block_set for n in neighbors)
+                
+                if not is_internal:
+                    blocks_to_keep.append(b)
+            
+            blocks = blocks_to_keep
+
+        # --- Sign Placement (Debug Gallery Only) ---
+        if args.pose == "debug_all":
+            # Place sign in front. 
+            # Center X = (min_x + max_x) // 2
+            # Front Z = min_z - 2? (Assuming Z+ is back?)
+            # Rig coordinates: Z+ is Back (Right Hand Rule match). Z- is Front.
+            # So Min Z is the front-most face. Place sign at Min Z - 2.
+            center_x_local = (local_min_x + local_max_x) // 2
+            front_z_local = min(b.z for b in blocks) - 2
+            
+            final_sign_x = int(center_x_local + offset_x)
+            final_sign_y = int(shift_y) # Floor level
+            final_sign_z = int(front_z_local)
+            
+            # Add to builder
+            builder.add_sign(
+                final_sign_x, final_sign_y, final_sign_z, 
+                text=pose_name, 
+                wall_sign=False, 
+                facing="north" # Facing North means text is on South side? Or facing towards North?
+                               # Standard Sign: Rotation needed to face camera looking at statue.
+                               # Statue looks South (-Z is front? No, usually +Z is South in MC).
+                               # Let's try default "north" (Rotation 8) or similar.
+                               # Actually, if Z- is front, we are looking at it from -Z towards +Z.
+                               # So sign should face -Z (North).
+            )
+
         for pb in blocks:
             c_key = (pb.r, pb.g, pb.b, pb.a)
             if c_key in color_cache:
@@ -126,7 +162,6 @@ def main():
                 color_cache[c_key] = block_id
                 
             if block_id:
-                # Add X offset & Y Shift
                 builder.add_block(pb.x + int(offset_x), pb.y + int(shift_y), pb.z, block_id)
                 total_added += 1
                 
