@@ -24,7 +24,6 @@ class SchematicBuilder:
         :param wall_sign: If True, use wall_sign block.
         :param facing: Block state 'facing' property (north, south, east, west)
         """
-        # Logic to be implemented in save() or stored in a separate list
         if not hasattr(self, 'signs'):
             self.signs = []
         self.signs.append({
@@ -59,8 +58,6 @@ class SchematicBuilder:
         width = max_x - min_x + 1
         height = max_y - min_y + 1
         length = max_z - min_z + 1
-        
-        # Pad bounds slightly? No.
 
         print(f"Schematic Size: {width}x{height}x{length}")
 
@@ -83,88 +80,6 @@ class SchematicBuilder:
 
         # Process Signs
         if hasattr(self, 'signs'):
-            from litemapy import TileEntity, BlockState
-            from nbtlib import Compound, String, Int, List
-            
-            for s in self.signs:
-                lx = s['x'] - min_x
-                ly = s['y'] - min_y
-                lz = s['z'] - min_z
-                
-                # Set Block
-                block_id = "minecraft:oak_wall_sign" if s['wall'] else "minecraft:oak_sign"
-                # Need block state properties? 
-                # BlockState("minecraft:oak_sign[rotation=8]")
-                # Default standing sign rotation 0=South? 8=North?
-                # Simple approximation:
-                if s['wall']:
-                    bs_str = f"{block_id}[facing={s['facing']}]"
-                else:
-                    # Standing sign. Rotation 0-15. 
-                    # facing="north" -> rotation=8 ?
-                    rot_map = {"north": 8, "south": 0, "east": 4, "west": 12}
-                    rot = rot_map.get(s.get('facing', 'south'), 0)
-                    bs_str = f"{block_id}[rotation={rot}]"
-                
-                try:
-                    reg.setblock(lx, ly, lz, BlockState(bs_str))
-                    
-                    # Create Tile Entity
-                    # Litemapy might handle TE automatically if we just make NBT?
-                    # No, we must instantiate TileEntity and add to reg.tile_entities.
-                    
-                    # NBT Format for Sign (1.20+ uses front_text/back_text messages json, but 1.21 might be strictly components? 
-                    # 1.20.4+ -> 'front_text': {'messages': ['"text"', ...]}
-                    # Pre-1.20 -> Text1, Text2...
-                    # Let's try uniform modern format (1.20+)
-                    
-                    msg_json = f'{{"text":"{s["text"]}"}}'
-                    
-                    # Using nbtlib types
-                    nbt = Compound({
-                        "id": String("minecraft:sign"),
-                        "x": Int(lx), # Local or Global? Litematic usually uses relative in regions? 
-                                      # Wait, in Litematic 'TileEntities' list, coordinates are usually Absolute? 
-                                      # Actually, usually they match the block position. 
-                                      # In a Schematic object, if origin is 0,0,0, then relative=absolute.
-                                      # Reg is 0,0,0 based. So lx, ly, lz.
-                        "y": Int(ly),
-                        "z": Int(lz),
-                        "front_text": Compound({
-                            "messages": List([
-                                String(msg_json),
-                                String('{"text":""}'),
-                                String('{"text":""}'),
-                                String('{"text":""}')
-                            ])
-                        }),
-                        "is_waxed": Int(0)
-                    })
-                    
-                    te = TileEntity(nbt)
-                    reg.tile_entities.append(te)
-                    
-                except Exception as e:
-                    print(f"Error adding sign at {lx},{ly},{lz}: {e}")
-
-        schem.save(output_path)
-        print(f"Saved {count} blocks to {output_path}")
-
-try:
-    from litemapy import Schematic, Region, BlockState, TileEntity
-    from nbtlib import Compound, String, Int, List
-except ImportError:
-    pass # Handled at top level usually, but this is safe refactor location logic? 
-         # The top has try/except. Let's just assume they exist since top check passed.
-         # Actually, let's just rely on the top level import for BlockState/Region.
-         # We need to add TileEntity/nbtlib imports to top.
-
-# Move this to top of file
-# But for now, fixing the loop logic.
-
-# In 'save':
-        # Process Signs
-        if hasattr(self, 'signs'):
             for s in self.signs:
                 lx = s['x'] - min_x
                 ly = s['y'] - min_y
@@ -184,7 +99,6 @@ except ImportError:
                 
                 try:
                     # Construct BlockState with ID and Props
-                    # BlockState("minecraft:oak_sign", {"rotation": "8"})
                     reg.setblock(lx, ly, lz, BlockState(block_id, props))
                     
                     msg_json = f'{{"text":"{s["text"]}"}}'
@@ -193,7 +107,7 @@ except ImportError:
                     nbt = Compound({
                         "id": String("minecraft:sign"),
                         "x": Int(lx),
-                        "y": Int(ly),
+                        "y": Int(ly), 
                         "z": Int(lz),
                         "front_text": Compound({
                             "messages": List([
