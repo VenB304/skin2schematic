@@ -73,3 +73,24 @@ Use `--list-poses` to see the full list.
 
 ## Configuration
 Block palettes can be customized in `src/palette.json`. You can modify which blocks are used for color matching without editing Python code.
+
+## Custom Poses
+You can create your own poses by creating a `.json` file.
+1.  Create a file (e.g., `dab.json`).
+2.  Define rotations (in degrees) for joints. valid joints: `HeadJoint`, `BodyJoint`, `RightArmJoint`, `LeftArmJoint`, `RightLegJoint`, `LeftLegJoint`.
+    - **rot**: Rotation `x` (Pitch), `y` (Yaw), `z` (Roll).
+    - **pos**: Optional position offset (x, y, z).
+
+*Example `dab.json`:*
+```json
+{
+    "HeadJoint": {"rot": {"x": 45, "y": 30}},
+    "RightArmJoint": {"rot": {"x": -135, "y": 45}},
+    "LeftArmJoint": {"rot": {"x": -45, "y": 45}}
+}
+```
+
+**Usage:**
+```bash
+python src/main.py -p dab.json
+```

@@ -185,7 +185,7 @@ class PoseApplicator:
             # Try: Pitch -50 (Up/Forward). Yaw -45 (Left). Roll?
             # Wait, Face is high.
             # Try: X=-150 (High Up), Z=-30 (In).
-            "RightArmJoint": {"rot": {"x": 150, "z": 30},
+            "RightArmJoint": {"rot": {"x": 140, "z": 32},
             "pos": {"x": 4, "y": 10, "z": -2}}
         },
         "shrug": {
