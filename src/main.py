@@ -97,7 +97,15 @@ def main():
         if "http" in args.input:
             base_name = "downloaded_statue"
         
-        output_path = f"{base_name}_{args.pose}.litematic"
+        # Create output directory: "[skin_name] output"
+        output_dir = f"{base_name} output"
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError:
+            pass # Fail silently if we can't create dir, fallback to current dir? 
+                 # Or just let open() fail later. exist_ok handles common case.
+        
+        output_path = os.path.join(output_dir, f"{base_name}_{args.pose}.litematic")
 
     print(f"Saving to {output_path}...")
     try:
